@@ -1,0 +1,63 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
+
+/* Three colours, taken from the reference screenshot. Everything else is an
+   opacity of these. */
+@theme {
+  --color-ink: #060707;
+  --color-paper: #fafafa;
+  --color-signal: #2c5763;
+  /* Teal lifted for small text on ink; same hue, readable contrast. */
+  --color-signal-hi: #5b8f9c;
+
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
+}
+
+@layer base {
+  html {
+    background: var(--color-ink);
+    color: var(--color-paper);
+    color-scheme: dark;
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    background: var(--color-ink);
+    font-family: var(--font-sans);
+  }
+  ::selection {
+    background: var(--color-signal);
+    color: var(--color-paper);
+  }
+  :focus-visible {
+    outline: 1px solid var(--color-signal-hi);
+    outline-offset: 3px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+}
+
+@utility label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  color: color-mix(in oklab, var(--color-paper) 45%, transparent);
+}
+
+/* Section heading: a neuron that fires once when the section scrolls in. */
+@utility neuron {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  border: 1px solid var(--color-signal-hi);
+  transition:
+    background-color 400ms ease,
+    box-shadow 900ms ease;
+}

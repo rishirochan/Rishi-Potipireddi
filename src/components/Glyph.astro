@@ -1,0 +1,19 @@
+---
+// Class marker shared by the hero field and the nav: filled/ring × paper/signal.
+interface Props {
+  cls: number;
+  class?: string;
+}
+const { cls, class: className = '' } = Astro.props;
+const filled = cls < 2;
+const signal = cls % 2 === 1;
+---
+
+<span
+  data-glyph
+  class:list={[
+    'inline-block size-[7px] shrink-0 rounded-full',
+    filled ? (signal ? 'bg-signal-hi' : 'bg-paper') : signal ? 'border border-signal-hi' : 'border border-paper',
+    className,
+  ]}
+></span>

@@ -1,0 +1,93 @@
+---
+import Base from '../layouts/Base.astro';
+import Hero from '../components/Hero.astro';
+import Work from '../components/Work.astro';
+import SectionHead from '../components/SectionHead.astro';
+import { profile, extras } from '../data/profile';
+
+const links = [
+  { label: 'github', href: profile.links.github },
+  { label: 'linkedin', href: profile.links.linkedin },
+];
+---
+
+<Base>
+  <main>
+    <Hero />
+
+    <section id="about" class="mx-auto max-w-6xl scroll-mt-8 px-6 py-28 md:px-10 md:py-36">
+      <SectionHead label="about" />
+      <div class="mt-10 grid gap-12 md:grid-cols-[1fr_18rem] md:gap-24">
+        <p class="max-w-2xl text-2xl leading-snug font-light text-balance md:text-3xl">{profile.about}</p>
+        <dl class="flex flex-col gap-5 self-end font-mono text-xs">
+          <div>
+            <dt class="label">education</dt>
+            <dd class="mt-1 text-paper/70">UC Irvine · B.S. Computer Science · {profile.grad}</dd>
+          </div>
+          {
+            extras.map((e) => (
+              <div>
+                <dt class="label">{e.label}</dt>
+                <dd class="mt-1 text-paper/70">{e.detail}</dd>
+              </div>
+            ))
+          }
+        </dl>
+      </div>
+    </section>
+
+    <Work />
+
+    <section id="contact" class="mx-auto max-w-6xl scroll-mt-8 px-6 pt-28 pb-16 md:px-10 md:pt-36">
+      <SectionHead label="contact" />
+      <a
+        href={`mailto:${profile.links.email}`}
+        class="mt-10 inline-block text-2xl font-light break-all decoration-signal underline-offset-8 hover:underline md:text-4xl"
+      >
+        {profile.links.email}
+      </a>
+      <ul class="mt-8 flex gap-6 font-mono text-sm">
+        {
+          links.map((l) => (
+            <li>
+              <a href={l.href} class="text-paper/50 transition-colors hover:text-paper" rel="me">
+                {l.label} <span class="text-signal-hi">↗</span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+
+      <footer class="label mt-32 flex flex-wrap justify-between gap-4 border-t border-paper/[0.07] pt-6">
+        <span>2 → 10 → 10 → 4 · tanh · softmax · trained in your browser</span>
+        <a href="#top" class="hover:text-paper">back to input ↑</a>
+      </footer>
+    </section>
+  </main>
+</Base>
+
+<style is:global>
+  [data-neuron][data-fired] {
+    background: var(--color-signal-hi);
+    box-shadow: 0 0 0 6px color-mix(in oklab, var(--color-signal) 0%, transparent);
+    animation: fire 900ms ease-out;
+  }
+  @keyframes fire {
+    from {
+      box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-signal-hi) 70%, transparent);
+    }
+    to {
+      box-shadow: 0 0 0 10px color-mix(in oklab, var(--color-signal-hi) 0%, transparent);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    [data-neuron][data-fired] {
+      animation: none;
+    }
+  }
+</style>
+
+<script>
+  import { mountNeurons } from '../lib/nn/graph';
+  mountNeurons();
+</script>
