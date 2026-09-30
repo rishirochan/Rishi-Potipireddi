@@ -252,84 +252,71 @@ export function mountForward(track: HTMLElement) {
       goTo(Math.ceil(s - 0.5) - 1);
     }
   });
-  // Horizontal gestures (trackpad swipes, shift+wheel, touch drags) page
-  // through the layers: right/left = down/up, 1px for 1px while the gesture
-  // runs, but a single gesture can't travel more than one layer, and when it
-  // ends it always lands on a layer (the next one if it went far enough or was
-  // a flick, otherwise back where it started).
-  const NEXT = 0.12; // layers of travel that commit to the next layer
-  const root = document.documentElement;
-  let origin: number | null = null; // layer the current gesture started on
-  let snapTimer = 0;
-
-  function drag(dy: number) {
+  // Horizontal gestures (trackpad swipes, shift+wheel, touch drags) don't drag
+  // the page; each one is a single step: right/left = next/previous layer. The
+  // swipe only picks the direction, then the page animates the whole way there,
+  // so it can never come to rest between two layers.
+  const TRIGGER = 30; // px of swipe before it counts
+  let pending: number | null = null; // layer we're animating to
+  let pendingTimer = 0;
+  function step(dir: 1 | -1) {
     readScroll();
-    if (origin === null) {
-      origin = Math.round(s);
-      clearTimeout(snapTimer);
-      root.style.scrollSnapType = 'none'; // native snap would fight the drag
-    }
-    const lo = track.offsetTop + Math.max(0, origin - 1) * seg;
-    const hi = track.offsetTop + Math.min(L - 1, origin + 1) * seg;
-    const top = Math.max(lo, Math.min(hi, window.scrollY + dy));
-    window.scrollTo({ top, behavior: 'instant' });
-  }
-  function release(flick = 0) {
-    if (origin === null) return;
-    readScroll();
-    const d = s - origin;
-    const dir = flick || (d > NEXT ? 1 : d < -NEXT ? -1 : 0);
-    goTo(origin + dir);
-    origin = null;
-    snapTimer = window.setTimeout(() => (root.style.scrollSnapType = ''), reduced ? 0 : 800);
+    const from = pending ?? Math.round(s);
+    const to = Math.max(0, Math.min(L - 1, from + dir));
+    if (to === from) return;
+    pending = to;
+    goTo(to);
+    clearTimeout(pendingTimer);
+    pendingTimer = window.setTimeout(() => (pending = null), 900);
   }
 
+  // One wheel gesture (including a trackpad's momentum tail) = one step.
+  let wheelAcc = 0;
+  let wheelUsed = false;
   let wheelIdle = 0;
   window.addEventListener(
     'wheel',
     (e) => {
       if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
       e.preventDefault();
-      drag(e.deltaX);
-      // Trackpad momentum keeps emitting events (clamped by drag, so it can't
-      // overshoot); land once they stop.
       clearTimeout(wheelIdle);
-      wheelIdle = window.setTimeout(() => release(), 120);
+      wheelIdle = window.setTimeout(() => {
+        wheelAcc = 0;
+        wheelUsed = false;
+      }, 150);
+      if (wheelUsed) return;
+      wheelAcc += e.deltaX;
+      if (Math.abs(wheelAcc) >= TRIGGER) {
+        wheelUsed = true;
+        step(wheelAcc > 0 ? 1 : -1);
+      }
     },
     { passive: false },
   );
-  let touch: { x: number; y: number; axis: 'x' | 'y' | null; v: number; t: number } | null = null;
+
+  let touch: { x0: number; y0: number; axis: 'x' | 'y' | null; used: boolean } | null = null;
   window.addEventListener('touchstart', (e) => {
     const t = e.touches[0];
-    touch = { x: t.clientX, y: t.clientY, axis: null, v: 0, t: performance.now() };
+    touch = { x0: t.clientX, y0: t.clientY, axis: null, used: false };
   });
   window.addEventListener(
     'touchmove',
     (e) => {
       if (!touch || e.touches.length > 1) return;
       const t = e.touches[0];
-      const dx = t.clientX - touch.x;
-      const dy = t.clientY - touch.y;
+      const dx = t.clientX - touch.x0;
+      const dy = t.clientY - touch.y0;
       if (!touch.axis && Math.hypot(dx, dy) > 8) touch.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
       if (touch.axis !== 'x') return;
       e.preventDefault();
-      drag(-dx);
-      const now = performance.now();
-      // Smoothed finger velocity (px/ms) for flick detection.
-      touch.v = 0.6 * (dx / Math.max(1, now - touch.t)) + 0.4 * touch.v;
-      touch.t = now;
-      touch.x = t.clientX;
-      touch.y = t.clientY;
+      if (!touch.used && Math.abs(dx) >= TRIGGER) {
+        touch.used = true;
+        step(dx < 0 ? 1 : -1); // finger moves left = go right, like a carousel
+      }
     },
     { passive: false },
   );
-  const endTouch = () => {
-    if (touch?.axis === 'x') {
-      const flick = Math.abs(touch.v) > 0.3 && performance.now() - touch.t < 120;
-      release(flick ? (touch.v < 0 ? 1 : -1) : 0);
-    }
-    touch = null;
-  };
+  const endTouch = () => (touch = null);
   window.addEventListener('touchend', endTouch);
   window.addEventListener('touchcancel', endTouch);
 
