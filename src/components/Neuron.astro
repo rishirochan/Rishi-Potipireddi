@@ -1,0 +1,24 @@
+---
+// One neuron: soma (input port) · title · axon · terminal (output port).
+// The forward-pass script lights the soma with --a and fills the axon with --axon.
+interface Props {
+  id: string;
+  layer: number;
+  first?: boolean;
+  last?: boolean;
+  class?: string;
+}
+const { id, layer, first = false, last = false, class: className } = Astro.props;
+---
+
+<article data-neuron={id} data-layer={layer} class:list={['neuron', className]} style="--a: 0; --axon: 0">
+  <div class="flex items-center gap-3">
+    <span data-in class:list={['soma', first && 'soma-lg']} aria-hidden="true"></span>
+    <div class="title min-w-0 shrink"><slot name="title" /></div>
+    <span class="axon" aria-hidden="true"><span></span></span>
+    {!last && <span data-out class="terminal" aria-hidden="true" />}
+  </div>
+  <div class:list={['body mt-2', first ? 'pl-[calc(14px+0.75rem)]' : 'pl-[calc(9px+0.75rem)]']}>
+    <slot />
+  </div>
+</article>

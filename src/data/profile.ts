@@ -1,115 +1,122 @@
-// Single source of truth for site content. Keep entries short: the site shows
-// one line per item and reveals detail on interaction.
+// Site content, arranged as the layers of the network the page draws:
+// input (you) → experience → projects → output (everything else).
+// Keep each line short; the layout has room for about two lines per neuron.
 
-export const profile = {
+export const person = {
   name: 'Rishi Potipireddi',
-  tagline: 'building agentic systems',
   school: 'CS @ UC Irvine',
-  grad: '2027',
-  about:
-    'I build agents that plan, act, and check their own work — from browser-testing platforms at Qualcomm to research pipelines for investors.',
-  links: {
-    email: 'rishi.potipireddi@gmail.com',
-    github: 'https://github.com/rishirochan',
-    linkedin: 'https://www.linkedin.com/in/rishi-potipireddi',
-  },
-} as const;
+  grad: "'27",
+  line: 'I build AI agents that plan, act, and check their own work.',
+};
 
-/** Input layer of the work graph. Ids are referenced by `uses` below. */
-export const skills = [
-  { id: 'python', label: 'Python' },
-  { id: 'ts', label: 'TypeScript' },
-  { id: 'agents', label: 'Agents' },
-  { id: 'langgraph', label: 'LangGraph' },
-  { id: 'rag', label: 'RAG' },
-  { id: 'finetune', label: 'Fine-tuning' },
-  { id: 'fastapi', label: 'FastAPI' },
-  { id: 'playwright', label: 'Playwright' },
-  { id: 'sql', label: 'SQL' },
-  { id: 'redis', label: 'Redis' },
-  { id: 'cloud', label: 'AWS / GCP' },
-  { id: 'k8s', label: 'Kubernetes' },
-] as const;
-
-export type SkillId = (typeof skills)[number]['id'];
-
-export interface Node {
+export interface Experience {
   id: string;
-  kind: 'role' | 'project';
-  title: string;
   org: string;
+  role: string;
   when: string;
-  /** One line, always visible when the node is active. */
   line: string;
-  /** Headline number shown as the node's "activation". */
-  metric?: { value: string; label: string };
-  uses: SkillId[];
-  href?: string;
 }
 
-export const nodes: Node[] = [
+export const experience: Experience[] = [
   {
     id: 'amazon',
-    kind: 'role',
-    title: 'SDE Intern',
     org: 'Amazon',
+    role: 'SDE Intern',
     when: 'Fall 2026',
     line: 'AWS Education Platform.',
-    uses: ['cloud', 'ts'],
   },
   {
     id: 'qualcomm',
-    kind: 'role',
-    title: 'Agentic AI/ML Intern',
     org: 'Qualcomm',
+    role: 'Agentic AI/ML Intern',
     when: 'Summer 2026',
-    line: 'Agentic browser-test platform with human-in-the-loop executor/evaluator agents; presented to 100+ incl. SVP.',
-    metric: { value: '−96%', label: 'test latency' },
-    uses: ['agents', 'python', 'ts', 'playwright', 'k8s', 'sql', 'cloud'],
+    line: 'Agentic browser-testing platform. Cut test latency 96%.',
   },
   {
     id: 'mpower4',
-    kind: 'role',
-    title: 'AI Research Intern',
     org: 'MPower4',
+    role: 'AI Research Intern',
     when: 'Winter–Spring 2026',
-    line: 'Multi-threaded news pipeline fanning 7 agents over 35+ sources into per-portfolio digests.',
-    metric: { value: '−30%', label: 'tokens' },
-    uses: ['agents', 'python'],
+    line: 'Parallel news agents over 35+ sources into per-portfolio digests.',
   },
   {
     id: 'everest',
-    kind: 'role',
-    title: 'AI Software Engineer Intern',
     org: 'Everest AI Ventures',
+    role: 'AI Software Engineer Intern',
     when: '2025',
-    line: 'Self-evaluating multi-agent market-research system for investors.',
-    metric: { value: '−60%', label: 'turnaround' },
-    uses: ['agents', 'langgraph', 'fastapi', 'python'],
-  },
-  {
-    id: 'adyou',
-    kind: 'project',
-    title: 'ADYou',
-    org: 'Project',
-    when: '2026 —',
-    line: 'Source-cited ADU guidance via LangGraph RAG. Hackathon idea → 20+ beta users, 25+ contractors.',
-    metric: { value: '7s → <1s', label: 'reports' },
-    uses: ['langgraph', 'rag', 'fastapi', 'redis', 'sql', 'cloud', 'python'],
-  },
-  {
-    id: 'fincopilot',
-    kind: 'project',
-    title: 'Financial Copilot',
-    org: 'Project',
-    when: '2025–26',
-    line: 'Llama 3.1 8B fine-tuned (QLoRA) into a tool-routing agent over 32 finance functions.',
-    metric: { value: '97%', label: 'accuracy' },
-    uses: ['finetune', 'agents', 'python'],
+    line: 'Self-evaluating multi-agent market research. 60% faster turnaround.',
   },
 ];
 
-export const extras = [
-  { label: 'Corporate Director, Hack@UCI', detail: '$20k+ raised · 500+ hackers' },
-  { label: 'Certs', detail: 'Anthropic MCP · NVIDIA RAG · Databricks GenAI' },
+export interface Project {
+  id: string;
+  title: string;
+  line: string;
+  /** Omit for private repos. */
+  href?: string;
+}
+
+export const projects: Project[] = [
+  {
+    id: 'adyou',
+    title: 'ADYou',
+    line: 'Source-cited ADU guidance with LangGraph RAG. 20+ beta users.',
+  },
+  {
+    id: 'clarity',
+    title: 'Clarity',
+    line: 'Multimodal speaking coach built at LA Hacks 2026.',
+    href: 'https://github.com/rishirochan/LAHack2026',
+  },
+  {
+    id: 'myeditor',
+    title: 'MyEditor',
+    line: 'Self-hosted Overleaf. Live LaTeX preview on your own box.',
+    href: 'https://github.com/rishirochan/MyEditor',
+  },
+  {
+    id: 'kafka-mcp',
+    title: 'Kafka MCP Server',
+    line: 'Lets LLMs manage Kafka topics, messages and schemas.',
+    href: 'https://github.com/rishirochan/kafka_mcp_server',
+  },
+  {
+    id: 'boring-money',
+    title: 'Boring Money',
+    line: 'Local desktop app for spending, Plaid sync and questions over transactions.',
+    href: 'https://github.com/rishirochan/BoringMoney',
+  },
+  {
+    id: 'fin-copilot',
+    title: 'Financial Copilot',
+    line: 'Llama 3.1 8B fine-tuned into a tool-routing finance agent. 97% accuracy.',
+  },
 ];
+
+/**
+ * Weights from experience to projects, 0–1. Pairs not listed get a faint
+ * baseline weight so the layer still reads as fully connected.
+ */
+export const weights: Record<string, Record<string, number>> = {
+  amazon: { myeditor: 0.7, 'kafka-mcp': 0.6 },
+  qualcomm: { adyou: 0.7, 'kafka-mcp': 0.9, myeditor: 0.6, clarity: 0.5 },
+  mpower4: { 'boring-money': 0.9, 'fin-copilot': 0.8, clarity: 0.4 },
+  everest: { adyou: 1, 'fin-copilot': 0.7, 'boring-money': 0.5 },
+};
+export const BASE_WEIGHT = 0.12;
+
+/** The output neuron: everything that didn't fit in the hidden layers. */
+export const output = {
+  education: 'B.S. Computer Science, UC Irvine · 2027 · 3.96 GPA',
+  skills: ['Python', 'TypeScript', 'SQL', 'C++', 'Swift', 'Java', 'LangGraph', 'FastAPI', 'Next.js', 'Postgres', 'Redis', 'Docker', 'AWS'],
+  certs: ['Anthropic: Advanced MCP Server', 'NVIDIA: LLMs with RAG', 'Databricks: Gen AI'],
+  leadership: 'Corporate Director, Hack@UCI. Raised $20k+ for a 500-hacker event.',
+  links: [
+    { label: 'github', href: 'https://github.com/rishirochan' },
+    { label: 'linkedin', href: 'https://www.linkedin.com/in/rishi-potipireddi' },
+    // Fill these in to show them:
+    { label: 'x', href: '' },
+    { label: 'résumé', href: '' },
+  ],
+  email: 'rishi.potipireddi@gmail.com',
+};
