@@ -252,16 +252,17 @@ export function mountForward(track: HTMLElement) {
       goTo(Math.ceil(s - 0.5) - 1);
     }
   });
-  // Horizontal gestures (trackpad swipes, shift+wheel, touch drags) move
-  // through the layers too, at the same speed the camera travels.
-  const ratio = () => seg / spacing;
+  // Horizontal gestures (trackpad swipes, shift+wheel, touch drags) are the
+  // vertical scroll rotated 90°: right/left = down/up, 1px for 1px, so a swipe
+  // covers exactly the distance the same vertical scroll would.
 
   // Checkpoint lock for horizontal gestures: the same behaviour vertical
   // scrolling gets from scroll-snap. Native snap is paused while a swipe is in
   // progress (it would fight the programmatic scrolling), then, once the swipe
   // ends, we settle on the nearest layer if we're close to one, or on the next
   // layer in the swipe's direction if it was a flick.
-  const SNAP_RANGE = 0.25; // layers; matches the "proximity" feel of the y-axis snap
+  // Chrome's y-axis `proximity` snap grabs within a third of the viewport height.
+  const snapRange = () => Math.min(0.5, window.innerHeight / 3 / seg);
   const root = document.documentElement;
   let settleTimer = 0;
   const holdSnap = () => {
@@ -275,7 +276,7 @@ export function mountForward(track: HTMLElement) {
         ? Math.floor(s + 1e-3) + 1
         : Math.ceil(s - 1e-3) - 1
       : Math.round(s);
-    if (flick || Math.abs(s - target) < SNAP_RANGE) goTo(target);
+    if (flick || Math.abs(s - target) < snapRange()) goTo(target);
     // Hand snapping back to the stylesheet once the smooth scroll has landed.
     settleTimer = window.setTimeout(() => (root.style.scrollSnapType = ''), reduced ? 0 : 700);
   }
@@ -287,7 +288,7 @@ export function mountForward(track: HTMLElement) {
       if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
       e.preventDefault();
       holdSnap();
-      window.scrollBy({ top: e.deltaX * ratio(), behavior: 'instant' });
+      window.scrollBy({ top: e.deltaX, behavior: 'instant' });
       // Trackpad inertia keeps emitting wheel events; settle when they stop.
       clearTimeout(wheelIdle);
       wheelIdle = window.setTimeout(() => settle(), 140);
@@ -310,7 +311,7 @@ export function mountForward(track: HTMLElement) {
       if (touch.axis !== 'x') return;
       e.preventDefault();
       holdSnap();
-      window.scrollBy({ top: -dx * ratio(), behavior: 'instant' });
+      window.scrollBy({ top: -dx, behavior: 'instant' });
       const now = performance.now();
       // Smoothed finger velocity (px/ms) for flick detection.
       touch.v = 0.6 * (dx / Math.max(1, now - touch.t)) + 0.4 * touch.v;
