@@ -164,6 +164,12 @@ export function mountForward(track: HTMLElement) {
       f += (fGoal - f) * (1 - Math.exp(-dt / 0.42));
     }
     stage.style.setProperty('--cam', cam.toFixed(4));
+    // Only the layer the camera is on shows its text; it fades in on arrival.
+    layerEls.forEach((el, i) => {
+      const vis = clamp01(1 - (Math.abs(cam - i) - 0.1) / 0.4);
+      el.style.setProperty('--vis', vis.toFixed(3));
+      el.toggleAttribute('data-away', vis < 0.01);
+    });
 
     // Hover emphasis and the output softmax.
     const kh = reduced ? 1 : 1 - Math.exp(-dt / 0.14);
