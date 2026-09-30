@@ -1,0 +1,413 @@
+---
+// Feature map: clicking an experience neuron opens what that neuron "detects",
+// drawn like a CNN activation view: a grid of channels, each tinted by how
+// strongly it fires. Content lives in src/data/features.ts.
+import { experience } from '../data/profile';
+import { features, type Tile, type DiagramNode } from '../data/features';
+
+const maps = experience.filter((e) => features[e.id]).map((e) => ({ e, tiles: features[e.id] }));
+
+/** Steady pseudo-random numbers, so tiles look the same on every build. */
+function rng(seed: string) {
+  let h = 2166136261;
+  for (const ch of seed) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return () => {
+    h = Math.imul(h ^ (h >>> 15), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    return ((h ^= h >>> 16) >>> 0) / 4294967296;
+  };
+}
+
+/** An 8×8 activation map: a few soft blobs, quantised to cells. */
+function activation(seed: string) {
+  const r = rng(seed);
+  const blobs = Array.from({ length: 3 }, () => ({ x: r() * 8, y: r() * 8, s: 1.2 + r() * 2, k: 0.4 + r() * 0.6 }));
+  const cells: { x: number; y: number; v: number }[] = [];
+  for (let y = 0; y < 8; y++)
+    for (let x = 0; x < 8; x++) {
+      let v = 0;
+      for (const b of blobs) v += b.k * Math.exp(-((x + 0.5 - b.x) ** 2 + (y + 0.5 - b.y) ** 2) / (2 * b.s * b.s));
+      cells.push({ x, y, v: Math.min(1, v) });
+    }
+  return cells;
+}
+
+// Diagram geometry, in viewBox units. Columns run left → right like the page.
+const D = { w: 300, h: 270, pad: 4, boxH: 22, char: 5.8 };
+function diagram(nodes: DiagramNode[], edges: [string, string][]) {
+  const cols = Math.max(...nodes.map((n) => n.col)) + 1;
+  const rows = Math.max(...nodes.map((n) => n.row)) + 1;
+  const boxW = (n: DiagramNode) => n.label.length * D.char + 14;
+  const maxW = Math.max(...nodes.map(boxW));
+  const colX = (c: number) => D.pad + maxW / 2 + (cols > 1 ? (c * (D.w - 2 * D.pad - maxW)) / (cols - 1) : 0);
+  const rowY = (r: number) => D.pad + 24 + ((r + 0.5) * (D.h - 2 * D.pad - 36)) / rows;
+  const box = new Map(
+    nodes.map((n) => {
+      const w = boxW(n);
+      return [n.id, { ...n, w, x: colX(n.col) - w / 2, y: rowY(n.row) - D.boxH / 2, cx: colX(n.col), cy: rowY(n.row) }];
+    }),
+  );
+  const paths = edges.flatMap(([a, b]) => {
+    const s = box.get(a);
+    const t = box.get(b);
+    if (!s || !t) return [];
+    if (t.col <= s.col) {
+      // Feedback: a dashed arch over the top.
+      const lift = Math.min(s.y, t.y) - 18;
+      return [{ d: `M${s.cx} ${s.y} C${s.cx} ${lift} ${t.cx} ${lift} ${t.cx} ${t.y - 1.5}`, back: true }];
+    }
+    const x0 = s.x + s.w;
+    const x1 = t.x - 1.5;
+    const dx = (x1 - x0) / 2;
+    return [{ d: `M${x0} ${s.cy} C${x0 + dx} ${s.cy} ${x1 - dx} ${t.cy} ${x1} ${t.cy}`, back: false }];
+  });
+  return { boxes: [...box.values()], paths };
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const span = (t: Tile) => (t.kind === 'diagram' ? 'fm-big' : '');
+---
+
+<dialog data-panel data-fmap class="fm" aria-modal="true" aria-labelledby={maps[0] ? `fm-${maps[0].e.id}` : undefined}>
+  <div class="fm-panel" data-fm-panel>
+    <button type="button" data-fm-close class="fm-close label" aria-label="Close feature map">✕</button>
+    {
+      maps.map(({ e, tiles }) => {
+        let img = 0;
+        return (
+          <section data-fm={e.id} hidden>
+            <header class="pr-10">
+              <p class="label">
+                layer 1<span class="mx-2 text-signal-hi">·</span>
+                {e.org.toLowerCase()}
+                <span class="mx-2 text-signal-hi">·</span>feature map
+              </p>
+              <h2 id={`fm-${e.id}`} class="mt-3 text-2xl leading-tight font-light tracking-tight md:text-3xl">
+                {e.org}
+              </h2>
+              <p class="mt-1 font-mono text-[11px] text-paper/45">
+                {e.role} <span class="text-signal-hi">·</span> {e.when}
+              </p>
+            </header>
+
+            <ol class="fm-grid" aria-label={`${e.org} feature map`}>
+              {tiles.map((t, i) => {
+                const r = rng(`${e.id}-${i}`);
+                const a = t.a ?? 0.3 + r() * 0.5;
+                const style = `--t: ${a.toFixed(2)}; --x: ${Math.round(20 + r() * 60)}%; --y: ${Math.round(20 + r() * 60)}%; --d: ${i * 45}ms`;
+                const head = (
+                  <div class="fm-head label" aria-hidden="true">
+                    <span>ch {pad2(i + 1)}</span>
+                    <span class="tabular-nums">a {a.toFixed(2).replace(/^0/, '')}</span>
+                  </div>
+                );
+
+                if (t.kind === 'diagram') {
+                  const g = diagram(t.nodes, t.edges);
+                  const mk = `fm-arrow-${e.id}-${i}`;
+                  return (
+                    <li class:list={['fm-tile', span(t)]} style={style}>
+                      {head}
+                      <svg viewBox={`0 0 ${D.w} ${D.h}`} class="fm-diagram" role="img" aria-label={`${t.caption}: ${t.nodes.map((n) => n.label).join(', ')}`}>
+                        <defs>
+                          <marker id={mk} viewBox="0 0 6 6" refX="5" refY="3" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                            <path d="M0 0.5 L5.5 3 L0 5.5" fill="none" stroke="currentColor" stroke-width="1" />
+                          </marker>
+                        </defs>
+                        {g.paths.map((p) => (
+                          <path d={p.d} class:list={['fm-edge', p.back && 'fm-back']} marker-end={`url(#${mk})`} />
+                        ))}
+                        {g.boxes.map((b) => (
+                          <g class:list={['fm-node', b.hi && 'fm-hi']}>
+                            <rect x={b.x} y={b.y} width={b.w} height={D.boxH} rx="2" />
+                            <text x={b.cx} y={b.cy} dy="0.35em" text-anchor="middle">
+                              {b.label}
+                            </text>
+                          </g>
+                        ))}
+                      </svg>
+                      <p class="fm-cap label">{t.caption}</p>
+                    </li>
+                  );
+                }
+
+                if (t.kind === 'number')
+                  return (
+                    <li class="fm-tile" style={style}>
+                      {head}
+                      <div class="mt-auto">
+                        <p class="text-4xl leading-none font-light tracking-tight md:text-5xl">{t.value}</p>
+                        <p class="label mt-2">{t.label}</p>
+                      </div>
+                    </li>
+                  );
+
+                img++;
+                const hint = `public/features/${e.id}/${img}.png`;
+                return (
+                  <li class:list={['fm-tile', t.src && 'fm-shot']} style={style}>
+                    {t.src ? (
+                      <img src={t.src} alt={t.alt ?? t.caption} loading="lazy" decoding="async" class="fm-img" />
+                    ) : (
+                      <svg viewBox="0 0 8 8" preserveAspectRatio="none" class="fm-act" aria-hidden="true">
+                        {activation(`${e.id}-${i}-map`).map((c) => (
+                          <rect x={c.x + 0.04} y={c.y + 0.04} width="0.92" height="0.92" fill-opacity={(c.v * 0.5 * a).toFixed(3)} />
+                        ))}
+                      </svg>
+                    )}
+                    {head}
+                    <div class="fm-cap mt-auto">
+                      <p class="label text-paper/70!">{t.caption}</p>
+                      {!t.src && <p class="mt-1 font-mono text-[10px] leading-snug wrap-anywhere text-paper/30">
+                          add {hint.split('/').map((part, k) => (k ? <>/<wbr />{part}</> : part))}
+                        </p>}
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          </section>
+        );
+      })
+    }
+    <p class="label mt-5 hidden sm:block" aria-hidden="true">esc to close</p>
+  </div>
+</dialog>
+
+<script>
+  import { mountFeatureMap } from '../lib/featuremap';
+  const dialog = document.querySelector<HTMLDialogElement>('[data-fmap]');
+  if (dialog) mountFeatureMap(dialog);
+</script>
+
+<style>
+  /* The dialog itself is the backdrop; the panel floats on it. */
+  .fm {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: 16px;
+    border: 0;
+    color: var(--color-paper);
+    background: color-mix(in oklab, var(--color-ink) 78%, transparent);
+    backdrop-filter: blur(6px);
+    opacity: 0;
+    transition: opacity 180ms ease-out;
+  }
+  .fm[open] {
+    display: grid;
+    place-items: center;
+  }
+  .fm::backdrop {
+    background: transparent;
+  }
+  .fm[data-open] {
+    opacity: 1;
+  }
+
+  .fm-panel {
+    position: relative;
+    width: min(1040px, 100%);
+    max-height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: clamp(1rem, 3vw, 2rem);
+    border: 1px solid color-mix(in oklab, var(--color-paper) 10%, transparent);
+    border-radius: 4px;
+    background: var(--color-ink);
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-signal) 20%, transparent), 0 30px 80px -20px #000;
+    transform: translateY(8px) scale(0.99);
+    transition: transform 220ms cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  .fm[data-open] .fm-panel {
+    transform: none;
+  }
+
+  .fm-close {
+    position: absolute;
+    top: clamp(0.75rem, 2.5vw, 1.5rem);
+    right: clamp(0.75rem, 2.5vw, 1.5rem);
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    font-size: 0.8rem;
+    border: 1px solid color-mix(in oklab, var(--color-paper) 12%, transparent);
+    border-radius: 9999px;
+    cursor: pointer;
+    transition:
+      color 150ms,
+      border-color 150ms;
+  }
+  .fm-close:hover {
+    color: var(--color-paper);
+    border-color: var(--color-signal-hi);
+  }
+
+  .fm-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-flow: dense;
+    gap: 6px;
+    margin-top: 1.5rem;
+  }
+  @media (max-width: 639px) {
+    .fm-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  /* One channel. --t is its activation: it sets the tint and the border. */
+  .fm-tile {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    aspect-ratio: 1;
+    padding: 0.75rem;
+    overflow: hidden;
+    border: 1px solid color-mix(in oklab, var(--color-paper) calc(6% + var(--t) * 8%), transparent);
+    border-radius: 2px;
+    background:
+      radial-gradient(
+        110% 90% at var(--x) var(--y),
+        color-mix(in oklab, var(--color-signal) calc(var(--t) * 42%), transparent),
+        transparent 72%
+      ),
+      var(--color-ink);
+    opacity: 0;
+    transform: scale(0.985);
+    transition:
+      opacity 260ms ease-out var(--d),
+      transform 260ms ease-out var(--d),
+      border-color 200ms;
+  }
+  .fm[data-open] .fm-tile {
+    opacity: 1;
+    transform: none;
+  }
+  .fm-tile:hover {
+    border-color: color-mix(in oklab, var(--color-signal-hi) 60%, transparent);
+  }
+  .fm-big {
+    grid-column: span 2;
+    grid-row: span 2;
+  }
+
+  .fm-head {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 10px;
+  }
+  .fm-cap {
+    position: relative;
+  }
+
+  .fm-diagram {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    margin-block: 0.5rem;
+    color: var(--color-paper);
+  }
+  .fm-edge {
+    fill: none;
+    stroke: color-mix(in oklab, var(--color-paper) 32%, transparent);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+    color: color-mix(in oklab, var(--color-paper) 45%, transparent);
+  }
+  .fm-back {
+    stroke: var(--color-signal-hi);
+    stroke-dasharray: 2 3;
+    color: var(--color-signal-hi);
+  }
+  .fm-node rect {
+    fill: var(--color-ink);
+    stroke: color-mix(in oklab, var(--color-paper) 35%, transparent);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+  }
+  .fm-node text {
+    fill: color-mix(in oklab, var(--color-paper) 80%, transparent);
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.02em;
+  }
+  .fm-hi rect {
+    stroke: var(--color-signal-hi);
+    fill: color-mix(in oklab, var(--color-signal) 35%, var(--color-ink));
+  }
+  .fm-hi text {
+    fill: var(--color-paper);
+  }
+
+  /* Screenshot placeholder: a quantised activation map under the caption. */
+  .fm-act {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    fill: var(--color-signal-hi);
+    /* Fades under the labels so they stay on ink. */
+    mask-image: linear-gradient(transparent, #000 30%, #000 55%, transparent 90%);
+  }
+  .fm-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.9;
+  }
+  /* Keep labels legible over a real screenshot. */
+  .fm-shot::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      var(--color-ink),
+      transparent 28%,
+      transparent 62%,
+      var(--color-ink)
+    );
+    opacity: 0.85;
+  }
+  .fm-shot > :not(img) {
+    z-index: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .fm,
+    .fm-panel,
+    .fm-tile {
+      transition: none;
+    }
+  }
+</style>
+
+<style is:global>
+  /* Page behind stays put while the map is open. */
+  html[data-panel-open] {
+    overflow: hidden;
+  }
+  /* Experience neurons open their map: the whole neuron is the target. */
+  .neuron:has([data-feature]) {
+    cursor: pointer;
+  }
+  [data-feature] {
+    cursor: pointer;
+    text-align: left;
+    transition: color 150ms;
+  }
+  .neuron:has([data-feature]):hover [data-feature] {
+    color: var(--color-signal-hi);
+  }
+</style>
