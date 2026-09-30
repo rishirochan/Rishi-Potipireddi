@@ -1,5 +1,6 @@
 ---
 import Neuron from './Neuron.astro';
+import LossCurve from './LossCurve.astro';
 import { person, experience, projects, output, weights, BASE_WEIGHT, outWeights } from '../data/profile';
 
 const layers = [
@@ -147,6 +148,7 @@ const mmCols = layers.map((l, i) =>
             ))
           }
         </div>
+        <LossCurve />
       </section>
     </div>
 
