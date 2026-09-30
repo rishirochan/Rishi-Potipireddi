@@ -87,7 +87,7 @@ const mmCols = layers.map((l, i) =>
         {
           experience.map((e) => (
             <Neuron id={e.id} layer={1}>
-              <h2 slot="title" class="truncate text-lg leading-tight">
+              <h2 slot="title" class="truncate text-xl leading-tight">
                 {e.org}
               </h2>
               <p class="font-mono text-[11px] text-paper/45">
@@ -146,7 +146,7 @@ const mmCols = layers.map((l, i) =>
     </div>
 
     <p data-hint class="label absolute bottom-6 left-6 transition-opacity duration-700 md:left-10">
-      scroll to propagate <span class="text-signal-hi">→</span>
+      scroll or swipe to propagate <span class="text-signal-hi">→</span>
     </p>
   </div>
 </div>

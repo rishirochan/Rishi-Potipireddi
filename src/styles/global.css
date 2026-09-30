@@ -110,9 +110,9 @@
     --lw: min(600px, 88vw);
   }
 
-  .neuron .title,
+  /* Titles always read at full strength; the detail brightens as signal arrives. */
   .neuron .body {
-    opacity: calc(0.34 + var(--a) * 0.66);
+    opacity: calc(0.6 + var(--a) * 0.4);
   }
 
   .soma {

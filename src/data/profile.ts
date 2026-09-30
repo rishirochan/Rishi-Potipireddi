@@ -52,7 +52,7 @@ export interface Project {
   id: string;
   title: string;
   line: string;
-  /** Omit for private repos. */
+  /** Repo or live site. Omit when there's nothing public to link. */
   href?: string;
 }
 
@@ -61,6 +61,7 @@ export const projects: Project[] = [
     id: 'adyou',
     title: 'ADYou',
     line: 'Source-cited ADU guidance with LangGraph RAG. 20+ beta users.',
+    href: 'https://adyoualign.com',
   },
   {
     id: 'clarity',
@@ -114,8 +115,8 @@ export const output = {
   links: [
     { label: 'github', href: 'https://github.com/rishirochan' },
     { label: 'linkedin', href: 'https://www.linkedin.com/in/rishi-potipireddi' },
-    // Fill these in to show them:
-    { label: 'x', href: '' },
+    { label: 'x', href: 'https://x.com/RishiRochan' },
+    // Fill in to show:
     { label: 'résumé', href: '' },
   ],
   email: 'rishi.potipireddi@gmail.com',

@@ -254,6 +254,41 @@ export function mountForward(track: HTMLElement) {
       goTo(Math.ceil(s - 0.5) - 1);
     }
   });
+  // Horizontal gestures (trackpad swipes, shift+wheel, touch drags) move
+  // through the layers too, at the same speed the camera travels.
+  const ratio = () => seg / spacing;
+  window.addEventListener(
+    'wheel',
+    (e) => {
+      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      window.scrollBy({ top: e.deltaX * ratio(), behavior: 'instant' });
+    },
+    { passive: false },
+  );
+  let touch: { x: number; y: number; axis: 'x' | 'y' | null } | null = null;
+  window.addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    touch = { x: t.clientX, y: t.clientY, axis: null };
+  });
+  window.addEventListener(
+    'touchmove',
+    (e) => {
+      if (!touch || e.touches.length > 1) return;
+      const t = e.touches[0];
+      const dx = t.clientX - touch.x;
+      const dy = t.clientY - touch.y;
+      if (!touch.axis && Math.hypot(dx, dy) > 8) touch.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      if (touch.axis !== 'x') return;
+      e.preventDefault();
+      window.scrollBy({ top: -dx * ratio(), behavior: 'instant' });
+      touch.x = t.clientX;
+      touch.y = t.clientY;
+    },
+    { passive: false },
+  );
+  window.addEventListener('touchend', () => (touch = null));
+
   // Tabbing to a link in another layer brings that layer into view.
   world.addEventListener('focusin', (e) => {
     const n = (e.target as Element).closest<HTMLElement>('[data-neuron]');
