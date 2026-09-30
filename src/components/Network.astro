@@ -79,7 +79,6 @@ const mmCols = layers.map((l, i) =>
             {person.school} <span class="text-signal-hi">·</span>
             {person.grad}
           </p>
-          <p class="mt-5 max-w-sm text-lg leading-snug text-paper/75 md:text-xl">{person.line}</p>
         </Neuron>
       </section>
 
@@ -145,9 +144,6 @@ const mmCols = layers.map((l, i) =>
       </section>
     </div>
 
-    <p data-hint class="label absolute bottom-6 left-6 transition-opacity duration-700 md:left-10">
-      scroll or swipe to propagate <span class="text-signal-hi">→</span>
-    </p>
   </div>
 </div>
 
@@ -157,7 +153,7 @@ const mmCols = layers.map((l, i) =>
     .stage { position: static !important; height: auto !important; overflow: visible !important; }
     .world { position: static !important; transform: none !important; }
     .layer { position: static !important; width: auto !important; height: auto !important; padding: 4rem 1.5rem; }
-    [data-hint], [data-edges], .snap { display: none; }
+    [data-edges], .snap { display: none; }
     .neuron { --a: 1 !important; --axon: 1 !important; }
   </style>
 </noscript>

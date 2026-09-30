@@ -36,7 +36,6 @@ export function mountForward(track: HTMLElement) {
   const world = stage.querySelector<HTMLElement>('[data-world]')!;
   const canvas = stage.querySelector<HTMLCanvasElement>('[data-edges]')!;
   const ctx = canvas.getContext('2d')!;
-  const hint = stage.querySelector<HTMLElement>('[data-hint]')!;
   const layerIndex = stage.querySelector<HTMLElement>('[data-layer-index]')!;
   const layerName = stage.querySelector<HTMLElement>('[data-layer-name]')!;
   const mm = [...stage.querySelectorAll<SVGGElement>('[data-mm]')];
@@ -174,7 +173,6 @@ export function mountForward(track: HTMLElement) {
       layerName.textContent = names[idx];
       mm.forEach((g, i) => g.toggleAttribute('data-on', i === idx));
     }
-    hint.style.opacity = s > 0.04 ? '0' : '1';
   }
 
   // ---- drawing ------------------------------------------------------------

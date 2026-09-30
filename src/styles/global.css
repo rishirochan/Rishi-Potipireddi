@@ -23,10 +23,6 @@
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
   }
-  body {
-    background: var(--color-ink);
-    font-family: var(--font-sans);
-  }
   ::selection {
     background: var(--color-signal);
     color: var(--color-paper);
@@ -40,6 +36,15 @@
       scroll-behavior: auto;
     }
   }
+}
+
+/* Unlayered on purpose: pages embedding this site (or a host's reset) can't
+   out-rank it, so text never falls back to a dark default colour. */
+html,
+body {
+  background: var(--color-ink);
+  color: var(--color-paper);
+  font-family: var(--font-sans);
 }
 
 @utility label {
