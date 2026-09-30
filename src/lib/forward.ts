@@ -154,13 +154,16 @@ export function mountForward(track: HTMLElement) {
   const t0 = performance.now();
   let last = t0;
   let current = -1;
+  let dragging = false; // a trackpad is moving the page directly
+  let lin = 0; // 0 = camera dwells on layers, 1 = camera tracks scroll 1:1
 
   function update(now: number) {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     readScroll();
     const intro = reduced ? LEAD : Math.min(LEAD, ((now - t0) / 1600) * LEAD);
-    const camTarget = dwell(s);
+    lin += ((dragging ? 1 : 0) - lin) * (1 - Math.exp(-dt / 0.2));
+    const camTarget = dwell(s) + (s - dwell(s)) * lin;
     const fTarget = s >= L - 1 - 1e-3 ? L - 1 + LEAD : Math.min(s + LEAD, L - 1 + LEAD);
     const fGoal = s < 0.01 ? intro : fTarget;
     if (reduced) {
@@ -168,7 +171,7 @@ export function mountForward(track: HTMLElement) {
       f = fGoal;
     } else {
       // Frame-rate independent exponential smoothing; slow and heavy on purpose.
-      cam += (camTarget - cam) * (1 - Math.exp(-dt / 0.32));
+      cam += (camTarget - cam) * (1 - Math.exp(-dt / (0.32 - 0.2 * lin)));
       f += (fGoal - f) * (1 - Math.exp(-dt / 0.42));
     }
     stage.style.setProperty('--cam', cam.toFixed(4));
@@ -313,44 +316,119 @@ export function mountForward(track: HTMLElement) {
   stage.querySelectorAll<HTMLButtonElement>('[data-jump]').forEach((b) =>
     b.addEventListener('click', () => goTo(Number(b.dataset.jump))),
   );
-  // Scrolling and swiping, in either direction, don't drag the page; each
-  // gesture is a single step: down/right = next layer, up/left = previous. The
-  // gesture only picks the direction, then the page animates the whole way
-  // there, so it can never come to rest between two layers.
+  // Panels opened over the network (e.g. the feature map) keep their own
+  // scrolling and keys.
+  const root = document.documentElement;
+  const inPanel = (e: Event) =>
+    root.hasAttribute('data-panel-open') || (e.target instanceof Element && !!e.target.closest('[data-panel]'));
+
+  // Scrolling and swiping, in either direction, step one layer at a time:
+  // down/right = next layer, up/left = previous. The gesture only picks the
+  // direction, then the page animates the whole way there. A trackpad held
+  // down and moved slowly is different: the page follows the fingers (back
+  // and forth, at their speed), and on release snaps to the nearer layer.
   const TRIGGER = 30; // px of swipe before it counts
   let pending: number | null = null; // layer we're animating to
   let pendingTimer = 0;
+  function settle(to: number) {
+    pending = to;
+    goTo(to);
+    clearTimeout(pendingTimer);
+    pendingTimer = window.setTimeout(() => {
+      pending = null;
+      if (!dragging) root.removeAttribute('data-dragging');
+    }, 900);
+  }
   function step(dir: 1 | -1) {
     readScroll();
     const from = pending ?? Math.round(s);
     const to = Math.max(0, Math.min(L - 1, from + dir));
     if (to === from) return;
-    pending = to;
-    goTo(to);
-    clearTimeout(pendingTimer);
-    pendingTimer = window.setTimeout(() => (pending = null), 900);
+    settle(to);
   }
 
-  // One wheel gesture (a notch burst, or a trackpad swipe and its momentum) = one step.
-  let wheelAcc = 0;
-  let wheelUsed = false;
+  // Trackpads send one stream of wheel events whether the fingers are down or
+  // the page is coasting after they lift, so the page follows the stream from
+  // the first event and the gesture is judged by how it ends:
+  //   - a flick leaves momentum behind (deltas decaying smoothly from speed):
+  //     that's a swipe, so animate on to the next layer in that direction;
+  //   - no momentum (fingers slowed and lifted, or just stopped): snap to
+  //     whichever layer is closer.
+  // A mouse wheel notch (one big delta) still steps one layer.
+  const NOTCH = 50; // px in a single event: a wheel notch, not a trackpad
+  const IDLE_MS = 140; // no events this long = the gesture is over
+  const FLICK_V = 0.6; // px/ms at the start of a decay that counts as a flick
+  const DECAY_N = 5; // consecutive shrinking deltas that make a momentum tail
+  let gesture: {
+    from: number | null; // layer an earlier step was still animating to
+    last: number; // time of the previous event
+    trail: { d: number; v: number }[]; // recent deltas and speeds, newest last
+    done: boolean; // stepped; ignore the rest of this gesture
+  } | null = null;
   let wheelIdle = 0;
+  function endGesture() {
+    const g = gesture;
+    gesture = null;
+    dragging = false;
+    if (!g || g.done) return;
+    // Released without a flick: snap (animated) to whichever layer is closer.
+    readScroll();
+    settle(Math.max(0, Math.min(L - 1, Math.round(s))));
+  }
+  function flick(g: NonNullable<typeof gesture>, dir: 1 | -1) {
+    g.done = true;
+    dragging = false;
+    readScroll();
+    // On from where the page is (or from a step still in flight, the same way),
+    // to the next layer boundary ahead.
+    let to = dir > 0 ? Math.floor(s + 0.02) + 1 : Math.ceil(s - 0.02) - 1;
+    if (g.from !== null && Math.sign(g.from - s) === dir) to = g.from + dir;
+    settle(Math.max(0, Math.min(L - 1, to)));
+  }
   window.addEventListener(
     'wheel',
     (e) => {
-      if (e.ctrlKey) return; // pinch-zoom
+      if (e.ctrlKey || inPanel(e)) return; // pinch-zoom, or a panel scrolling
       e.preventDefault();
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? window.innerHeight : 1;
+      const d = (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) * unit;
+      const now = performance.now();
       clearTimeout(wheelIdle);
-      wheelIdle = window.setTimeout(() => {
-        wheelAcc = 0;
-        wheelUsed = false;
-      }, 150);
-      if (wheelUsed) return;
-      wheelAcc += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      if (Math.abs(wheelAcc) >= TRIGGER) {
-        wheelUsed = true;
-        step(wheelAcc > 0 ? 1 : -1);
+      wheelIdle = window.setTimeout(endGesture, IDLE_MS);
+      if (!gesture) {
+        gesture = { from: pending, last: now - 16, trail: [], done: false };
+        if (Math.abs(d) >= NOTCH) {
+          gesture.done = true;
+          step(d > 0 ? 1 : -1);
+          return;
+        }
       }
+      const g = gesture;
+      if (g.done || d === 0) return;
+      const v = Math.abs(d) / Math.max(4, now - g.last);
+      g.last = now;
+      g.trail.push({ d, v });
+      if (g.trail.length > DECAY_N + 1) g.trail.shift();
+
+      // Momentum: the last DECAY_N deltas all one way, each smaller than the
+      // one before, falling from flick speed.
+      const t = g.trail;
+      if (t.length === DECAY_N + 1 && t[0].v >= FLICK_V) {
+        const dir = Math.sign(t[0].d);
+        let decaying = t[t.length - 1].v < t[0].v * 0.97;
+        for (let i = 1; i < t.length && decaying; i++)
+          decaying = Math.sign(t[i].d) === dir && Math.abs(t[i].d) < Math.abs(t[i - 1].d);
+        if (decaying) return flick(g, dir as 1 | -1);
+      }
+
+      // Fingers down: the page follows 1:1-ish. About 450px of finger travel
+      // per layer, a bit further per px when moving quickly.
+      const gain = (seg / 450) * (1 + Math.min(0.8, v * 0.4));
+      dragging = true;
+      pending = null;
+      clearTimeout(pendingTimer);
+      root.setAttribute('data-dragging', '');
+      window.scrollTo({ top: window.scrollY + d * gain, behavior: 'instant' });
     },
     { passive: false },
   );
@@ -363,7 +441,7 @@ export function mountForward(track: HTMLElement) {
   window.addEventListener(
     'touchmove',
     (e) => {
-      if (!touch || e.touches.length > 1) return;
+      if (!touch || e.touches.length > 1 || inPanel(e)) return;
       const t = e.touches[0];
       const dx = t.clientX - touch.x0;
       const dy = t.clientY - touch.y0;
@@ -387,7 +465,7 @@ export function mountForward(track: HTMLElement) {
     ArrowLeft: -1, ArrowUp: -1, PageUp: -1,
   };
   window.addEventListener('keydown', (e) => {
-    if (e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey || e.altKey || inPanel(e)) return;
     if (e.key === 'Home' || e.key === 'End') {
       e.preventDefault();
       goTo(e.key === 'Home' ? 0 : L - 1);
