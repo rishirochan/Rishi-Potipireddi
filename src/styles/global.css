@@ -180,6 +180,27 @@ body {
     background: color-mix(in oklab, var(--color-signal-hi) calc(var(--axon) * var(--axon) * 100%), var(--color-ink));
   }
 
+  /* Output choices: the hovered one takes the vote, the rest step back. */
+  .choices {
+    gap: clamp(0.7rem, 2.6svh, 1.4rem);
+  }
+  .choice {
+    transition: opacity 250ms;
+  }
+  .choice .soma {
+    transition: transform 250ms;
+  }
+  [data-hovering] > .choice:not([data-hover]) {
+    opacity: 0.4;
+  }
+  .choice[data-hover] .soma {
+    transform: scale(1.5);
+    box-shadow: 0 0 18px color-mix(in oklab, var(--color-signal-hi) 70%, transparent);
+  }
+  .choice[data-hover] [data-p] {
+    color: var(--color-signal-hi);
+  }
+
   .mm circle {
     fill: var(--color-paper);
     fill-opacity: 0.3;

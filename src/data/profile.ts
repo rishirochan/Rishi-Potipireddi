@@ -106,12 +106,27 @@ export const weights: Record<string, Record<string, number>> = {
 };
 export const BASE_WEIGHT = 0.12;
 
-/** The output neuron: everything that didn't fit in the hidden layers. */
+/**
+ * The output layer. Your name and links sit on top; below them, one output
+ * neuron per "decision". Hovering one pulls the network's vote towards it.
+ */
+export interface Choice {
+  id: string;
+  label: string;
+  text: string;
+}
+
 export const output = {
-  education: 'B.S. Computer Science, UC Irvine · 2027 · 3.96 GPA',
-  skills: ['Python', 'TypeScript', 'SQL', 'C++', 'Swift', 'Java', 'LangGraph', 'FastAPI', 'Next.js', 'Postgres', 'Redis', 'Docker', 'AWS'],
-  certs: ['Anthropic: Advanced MCP Server', 'NVIDIA: LLMs with RAG', 'Databricks: Gen AI'],
-  leadership: 'Corporate Director, Hack@UCI. Raised $20k+ for a 500-hacker event.',
+  choices: [
+    { id: 'education', label: 'education', text: 'B.S. Computer Science, UC Irvine · 2027 · 3.96 GPA' },
+    {
+      id: 'skills',
+      label: 'skills',
+      text: ['Python', 'TypeScript', 'SQL', 'C++', 'Swift', 'Java', 'LangGraph', 'FastAPI', 'Next.js', 'Postgres', 'Redis', 'Docker', 'AWS'].join(' · '),
+    },
+    { id: 'certs', label: 'certs', text: 'Anthropic: Advanced MCP Server · NVIDIA: LLMs with RAG · Databricks: Gen AI' },
+    { id: 'leadership', label: 'leadership', text: 'Corporate Director, Hack@UCI. Raised $20k+ for a 500-hacker event.' },
+  ] satisfies Choice[],
   links: [
     { label: 'github', href: 'https://github.com/rishirochan' },
     { label: 'linkedin', href: 'https://www.linkedin.com/in/rishi-potipireddi' },
@@ -120,4 +135,16 @@ export const output = {
     { label: 'résumé', href: '' },
   ],
   email: 'rishi.potipireddi@gmail.com',
+};
+/**
+ * Weights from projects to output choices, 0–1: how much each project
+ * backs up that choice. Unlisted pairs get BASE_WEIGHT.
+ */
+export const outWeights: Record<string, Record<string, number>> = {
+  adyou: { skills: 0.9, leadership: 0.7, certs: 0.5, education: 0.2 },
+  clarity: { skills: 0.6, leadership: 0.4, education: 0.3 },
+  myeditor: { skills: 0.7, education: 0.5 },
+  'kafka-mcp': { certs: 0.95, skills: 0.8 },
+  'boring-money': { skills: 0.7, education: 0.2 },
+  'fin-copilot': { certs: 0.7, skills: 0.6, education: 0.4 },
 };

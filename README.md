@@ -2,7 +2,9 @@
 
 Personal site, drawn as a neural network. Scrolling (or swiping sideways) runs a
 forward pass: one input neuron (me) fans out to experience, then to projects,
-then converges on a single output neuron with links and details.
+then to the output layer: name and links on top, and below them a set of
+output "choices". Hovering one strengthens the edges into it and swings the
+softmax next to each choice towards it.
 
 ## Stack
 
@@ -13,7 +15,7 @@ then converges on a single output neuron with links and details.
 ## Content
 
 Everything on the page comes from `src/data/profile.ts`: experience, projects,
-the experience→project edge weights, and the output neuron's details and links.
+the experience→project and project→choice edge weights, and the output layer's choices and links.
 
 ## Develop
 
