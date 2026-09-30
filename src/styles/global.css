@@ -59,7 +59,7 @@ body {
 
 @layer base {
   html {
-    scroll-snap-type: y proximity;
+    scroll-snap-type: y mandatory;
   }
   body {
     overflow-x: clip;
@@ -115,9 +115,22 @@ body {
     --lw: min(600px, 88vw);
   }
 
+  /* Text only shows on the layer in view (--vis, set per layer by the script);
+     somas, axons and edges stay visible so the network reads from afar. */
+  .layer {
+    --vis: 1;
+  }
+  .neuron .title,
+  .neuron [data-p],
+  .layer > header {
+    opacity: var(--vis);
+  }
+  .layer[data-away] :is(.title, .body, [data-p], header) {
+    visibility: hidden;
+  }
   /* Titles always read at full strength; the detail brightens as signal arrives. */
   .neuron .body {
-    opacity: calc(0.6 + var(--a) * 0.4);
+    opacity: calc((0.6 + var(--a) * 0.4) * var(--vis));
   }
 
   .soma {

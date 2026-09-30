@@ -172,6 +172,12 @@ export function mountForward(track: HTMLElement) {
       f += (fGoal - f) * (1 - Math.exp(-dt / 0.42));
     }
     stage.style.setProperty('--cam', cam.toFixed(4));
+    // Only the layer the camera is on shows its text; it fades in on arrival.
+    layerEls.forEach((el, i) => {
+      const vis = clamp01(1 - (Math.abs(cam - i) - 0.1) / 0.4);
+      el.style.setProperty('--vis', vis.toFixed(3));
+      el.toggleAttribute('data-away', vis < 0.01);
+    });
 
     // Hover emphasis and the output softmax.
     const kh = reduced ? 1 : 1 - Math.exp(-dt / 0.14);
@@ -307,50 +313,91 @@ export function mountForward(track: HTMLElement) {
   stage.querySelectorAll<HTMLButtonElement>('[data-jump]').forEach((b) =>
     b.addEventListener('click', () => goTo(Number(b.dataset.jump))),
   );
-  window.addEventListener('keydown', (e) => {
-    if (e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey || e.altKey) return;
-    if (e.key === 'ArrowRight') {
-      e.preventDefault();
-      goTo(Math.floor(s + 0.5) + 1);
-    } else if (e.key === 'ArrowLeft') {
-      e.preventDefault();
-      goTo(Math.ceil(s - 0.5) - 1);
-    }
-  });
-  // Horizontal gestures (trackpad swipes, shift+wheel, touch drags) move
-  // through the layers too, at the same speed the camera travels.
-  const ratio = () => seg / spacing;
+  // Scrolling and swiping, in either direction, don't drag the page; each
+  // gesture is a single step: down/right = next layer, up/left = previous. The
+  // gesture only picks the direction, then the page animates the whole way
+  // there, so it can never come to rest between two layers.
+  const TRIGGER = 30; // px of swipe before it counts
+  let pending: number | null = null; // layer we're animating to
+  let pendingTimer = 0;
+  function step(dir: 1 | -1) {
+    readScroll();
+    const from = pending ?? Math.round(s);
+    const to = Math.max(0, Math.min(L - 1, from + dir));
+    if (to === from) return;
+    pending = to;
+    goTo(to);
+    clearTimeout(pendingTimer);
+    pendingTimer = window.setTimeout(() => (pending = null), 900);
+  }
+
+  // One wheel gesture (a notch burst, or a trackpad swipe and its momentum) = one step.
+  let wheelAcc = 0;
+  let wheelUsed = false;
+  let wheelIdle = 0;
   window.addEventListener(
     'wheel',
     (e) => {
-      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+      if (e.ctrlKey) return; // pinch-zoom
       e.preventDefault();
-      window.scrollBy({ top: e.deltaX * ratio(), behavior: 'instant' });
+      clearTimeout(wheelIdle);
+      wheelIdle = window.setTimeout(() => {
+        wheelAcc = 0;
+        wheelUsed = false;
+      }, 150);
+      if (wheelUsed) return;
+      wheelAcc += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (Math.abs(wheelAcc) >= TRIGGER) {
+        wheelUsed = true;
+        step(wheelAcc > 0 ? 1 : -1);
+      }
     },
     { passive: false },
   );
-  let touch: { x: number; y: number; axis: 'x' | 'y' | null } | null = null;
+
+  let touch: { x0: number; y0: number; axis: 'x' | 'y' | null; used: boolean } | null = null;
   window.addEventListener('touchstart', (e) => {
     const t = e.touches[0];
-    touch = { x: t.clientX, y: t.clientY, axis: null };
+    touch = { x0: t.clientX, y0: t.clientY, axis: null, used: false };
   });
   window.addEventListener(
     'touchmove',
     (e) => {
       if (!touch || e.touches.length > 1) return;
       const t = e.touches[0];
-      const dx = t.clientX - touch.x;
-      const dy = t.clientY - touch.y;
+      const dx = t.clientX - touch.x0;
+      const dy = t.clientY - touch.y0;
       if (!touch.axis && Math.hypot(dx, dy) > 8) touch.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
-      if (touch.axis !== 'x') return;
+      if (!touch.axis) return;
       e.preventDefault();
-      window.scrollBy({ top: -dx * ratio(), behavior: 'instant' });
-      touch.x = t.clientX;
-      touch.y = t.clientY;
+      const d = touch.axis === 'x' ? dx : dy;
+      if (!touch.used && Math.abs(d) >= TRIGGER) {
+        touch.used = true;
+        step(d < 0 ? 1 : -1); // finger moves left/up = next layer
+      }
     },
     { passive: false },
   );
-  window.addEventListener('touchend', () => (touch = null));
+  const endTouch = () => (touch = null);
+  window.addEventListener('touchend', endTouch);
+  window.addEventListener('touchcancel', endTouch);
+
+  const KEYS: Record<string, 1 | -1> = {
+    ArrowRight: 1, ArrowDown: 1, PageDown: 1, ' ': 1,
+    ArrowLeft: -1, ArrowUp: -1, PageUp: -1,
+  };
+  window.addEventListener('keydown', (e) => {
+    if (e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === 'Home' || e.key === 'End') {
+      e.preventDefault();
+      goTo(e.key === 'Home' ? 0 : L - 1);
+      return;
+    }
+    const dir = KEYS[e.key];
+    if (!dir || (e.key === ' ' && e.target instanceof Element && e.target.closest('button, a'))) return;
+    e.preventDefault();
+    step(e.key === ' ' && e.shiftKey ? -1 : dir);
+  });
 
   // Tabbing to a link in another layer brings that layer into view.
   world.addEventListener('focusin', (e) => {
