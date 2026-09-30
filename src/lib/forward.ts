@@ -154,13 +154,16 @@ export function mountForward(track: HTMLElement) {
   const t0 = performance.now();
   let last = t0;
   let current = -1;
+  let dragging = false; // a trackpad is moving the page directly
+  let lin = 0; // 0 = camera dwells on layers, 1 = camera tracks scroll 1:1
 
   function update(now: number) {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     readScroll();
     const intro = reduced ? LEAD : Math.min(LEAD, ((now - t0) / 1600) * LEAD);
-    const camTarget = dwell(s);
+    lin += ((dragging ? 1 : 0) - lin) * (1 - Math.exp(-dt / 0.2));
+    const camTarget = dwell(s) + (s - dwell(s)) * lin;
     const fTarget = s >= L - 1 - 1e-3 ? L - 1 + LEAD : Math.min(s + LEAD, L - 1 + LEAD);
     const fGoal = s < 0.01 ? intro : fTarget;
     if (reduced) {
@@ -168,7 +171,7 @@ export function mountForward(track: HTMLElement) {
       f = fGoal;
     } else {
       // Frame-rate independent exponential smoothing; slow and heavy on purpose.
-      cam += (camTarget - cam) * (1 - Math.exp(-dt / 0.32));
+      cam += (camTarget - cam) * (1 - Math.exp(-dt / (0.32 - 0.2 * lin)));
       f += (fGoal - f) * (1 - Math.exp(-dt / 0.42));
     }
     stage.style.setProperty('--cam', cam.toFixed(4));
@@ -313,44 +316,96 @@ export function mountForward(track: HTMLElement) {
   stage.querySelectorAll<HTMLButtonElement>('[data-jump]').forEach((b) =>
     b.addEventListener('click', () => goTo(Number(b.dataset.jump))),
   );
-  // Scrolling and swiping, in either direction, don't drag the page; each
-  // gesture is a single step: down/right = next layer, up/left = previous. The
-  // gesture only picks the direction, then the page animates the whole way
-  // there, so it can never come to rest between two layers.
+  // Panels opened over the network (e.g. the feature map) keep their own
+  // scrolling and keys.
+  const root = document.documentElement;
+  const inPanel = (e: Event) =>
+    root.hasAttribute('data-panel-open') || (e.target instanceof Element && !!e.target.closest('[data-panel]'));
+
+  // Scrolling and swiping, in either direction, step one layer at a time:
+  // down/right = next layer, up/left = previous. The gesture only picks the
+  // direction, then the page animates the whole way there. A trackpad held
+  // down and moved slowly is different: the page follows the fingers (back
+  // and forth, at their speed), and on release snaps to the nearer layer.
   const TRIGGER = 30; // px of swipe before it counts
   let pending: number | null = null; // layer we're animating to
   let pendingTimer = 0;
+  function settle(to: number) {
+    pending = to;
+    goTo(to);
+    clearTimeout(pendingTimer);
+    pendingTimer = window.setTimeout(() => {
+      pending = null;
+      if (!dragging) root.removeAttribute('data-dragging');
+    }, 900);
+  }
   function step(dir: 1 | -1) {
     readScroll();
     const from = pending ?? Math.round(s);
     const to = Math.max(0, Math.min(L - 1, from + dir));
     if (to === from) return;
-    pending = to;
-    goTo(to);
-    clearTimeout(pendingTimer);
-    pendingTimer = window.setTimeout(() => (pending = null), 900);
+    settle(to);
   }
 
-  // One wheel gesture (a notch burst, or a trackpad swipe and its momentum) = one step.
-  let wheelAcc = 0;
-  let wheelUsed = false;
+  // A wheel gesture (a notch burst, or a trackpad movement and its momentum)
+  // starts undecided and doesn't move the page yet. Enough travel within
+  // SWIPE_MS makes it a swipe: one step, and the rest of the gesture is
+  // ignored, exactly as before. Otherwise it's a drag.
+  const SWIPE_MS = 110;
+  const IDLE_MS = 140; // no events this long = fingers lifted
+  let gesture: { t0: number; held: number; recent: { t: number; d: number }[]; mode: 'open' | 'swipe' | 'drag' } | null = null;
   let wheelIdle = 0;
+  function endGesture() {
+    const g = gesture;
+    gesture = null;
+    dragging = false;
+    if (g?.mode !== 'drag') return; // swipes (and taps too small to decide) don't snap
+    // Released mid-drag: snap (animated) to whichever layer is closer.
+    readScroll();
+    settle(Math.max(0, Math.min(L - 1, Math.round(s))));
+  }
+  function drag(d: number, now: number) {
+    // Quicker fingers cover more ground; slow ones give fine control.
+    const v = gesture!.recent.length > 1 ? Math.abs(d) / Math.max(8, now - gesture!.recent[gesture!.recent.length - 2].t) : 0;
+    const gain = 1.8 + Math.min(1.6, v * 1.2);
+    dragging = true;
+    pending = null;
+    clearTimeout(pendingTimer);
+    root.setAttribute('data-dragging', '');
+    window.scrollTo({ top: window.scrollY + d * gain, behavior: 'instant' });
+  }
   window.addEventListener(
     'wheel',
     (e) => {
-      if (e.ctrlKey) return; // pinch-zoom
+      if (e.ctrlKey || inPanel(e)) return; // pinch-zoom, or a panel scrolling
       e.preventDefault();
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? window.innerHeight : 1;
+      const d = (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) * unit;
+      const now = performance.now();
       clearTimeout(wheelIdle);
-      wheelIdle = window.setTimeout(() => {
-        wheelAcc = 0;
-        wheelUsed = false;
-      }, 150);
-      if (wheelUsed) return;
-      wheelAcc += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      if (Math.abs(wheelAcc) >= TRIGGER) {
-        wheelUsed = true;
-        step(wheelAcc > 0 ? 1 : -1);
+      wheelIdle = window.setTimeout(endGesture, IDLE_MS);
+      gesture ??= { t0: now, held: 0, recent: [], mode: 'open' };
+      const g = gesture;
+      if (g.mode === 'swipe') return;
+      g.recent.push({ t: now, d });
+      while (g.recent.length > 1 && now - g.recent[0].t > SWIPE_MS) g.recent.shift();
+
+      if (g.mode === 'open') {
+        g.held += d;
+        const acc = g.recent.reduce((a, r) => a + r.d, 0);
+        if (Math.abs(acc) >= TRIGGER && now - g.t0 <= SWIPE_MS) {
+          g.mode = 'swipe';
+          step(acc > 0 ? 1 : -1);
+          return;
+        }
+        if (now - g.t0 <= SWIPE_MS) return;
+        // Too slow for a swipe: the fingers are steering. Catch up on what
+        // was held back while deciding, then follow.
+        g.mode = 'drag';
+        drag(g.held, now);
+        return;
       }
+      drag(d, now);
     },
     { passive: false },
   );
@@ -363,7 +418,7 @@ export function mountForward(track: HTMLElement) {
   window.addEventListener(
     'touchmove',
     (e) => {
-      if (!touch || e.touches.length > 1) return;
+      if (!touch || e.touches.length > 1 || inPanel(e)) return;
       const t = e.touches[0];
       const dx = t.clientX - touch.x0;
       const dy = t.clientY - touch.y0;
@@ -387,7 +442,7 @@ export function mountForward(track: HTMLElement) {
     ArrowLeft: -1, ArrowUp: -1, PageUp: -1,
   };
   window.addEventListener('keydown', (e) => {
-    if (e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey || e.altKey || inPanel(e)) return;
     if (e.key === 'Home' || e.key === 'End') {
       e.preventDefault();
       goTo(e.key === 'Home' ? 0 : L - 1);

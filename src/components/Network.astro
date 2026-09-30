@@ -132,7 +132,7 @@ const mmCols = layers.map((l, i) =>
             <span class="break-all text-paper/80 select-all">{output.email}</span>
           </div>
         </header>
-        <div data-choices class="choices flex flex-col border-t border-paper/10 pt-6">
+        <div data-choices class="choices flex flex-col pt-6">
           {
             output.choices.map((c) => (
               <Neuron id={c.id} layer={3} last class="choice">
