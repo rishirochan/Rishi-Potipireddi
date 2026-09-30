@@ -255,19 +255,49 @@ export function mountForward(track: HTMLElement) {
   // Horizontal gestures (trackpad swipes, shift+wheel, touch drags) move
   // through the layers too, at the same speed the camera travels.
   const ratio = () => seg / spacing;
+
+  // Checkpoint lock for horizontal gestures: the same behaviour vertical
+  // scrolling gets from scroll-snap. Native snap is paused while a swipe is in
+  // progress (it would fight the programmatic scrolling), then, once the swipe
+  // ends, we settle on the nearest layer if we're close to one, or on the next
+  // layer in the swipe's direction if it was a flick.
+  const SNAP_RANGE = 0.25; // layers; matches the "proximity" feel of the y-axis snap
+  const root = document.documentElement;
+  let settleTimer = 0;
+  const holdSnap = () => {
+    clearTimeout(settleTimer);
+    root.style.scrollSnapType = 'none';
+  };
+  function settle(flick = 0) {
+    readScroll();
+    const target = flick
+      ? flick > 0
+        ? Math.floor(s + 1e-3) + 1
+        : Math.ceil(s - 1e-3) - 1
+      : Math.round(s);
+    if (flick || Math.abs(s - target) < SNAP_RANGE) goTo(target);
+    // Hand snapping back to the stylesheet once the smooth scroll has landed.
+    settleTimer = window.setTimeout(() => (root.style.scrollSnapType = ''), reduced ? 0 : 700);
+  }
+
+  let wheelIdle = 0;
   window.addEventListener(
     'wheel',
     (e) => {
       if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
       e.preventDefault();
+      holdSnap();
       window.scrollBy({ top: e.deltaX * ratio(), behavior: 'instant' });
+      // Trackpad inertia keeps emitting wheel events; settle when they stop.
+      clearTimeout(wheelIdle);
+      wheelIdle = window.setTimeout(() => settle(), 140);
     },
     { passive: false },
   );
-  let touch: { x: number; y: number; axis: 'x' | 'y' | null } | null = null;
+  let touch: { x: number; y: number; axis: 'x' | 'y' | null; v: number; t: number } | null = null;
   window.addEventListener('touchstart', (e) => {
     const t = e.touches[0];
-    touch = { x: t.clientX, y: t.clientY, axis: null };
+    touch = { x: t.clientX, y: t.clientY, axis: null, v: 0, t: performance.now() };
   });
   window.addEventListener(
     'touchmove',
@@ -279,13 +309,26 @@ export function mountForward(track: HTMLElement) {
       if (!touch.axis && Math.hypot(dx, dy) > 8) touch.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
       if (touch.axis !== 'x') return;
       e.preventDefault();
+      holdSnap();
       window.scrollBy({ top: -dx * ratio(), behavior: 'instant' });
+      const now = performance.now();
+      // Smoothed finger velocity (px/ms) for flick detection.
+      touch.v = 0.6 * (dx / Math.max(1, now - touch.t)) + 0.4 * touch.v;
+      touch.t = now;
       touch.x = t.clientX;
       touch.y = t.clientY;
     },
     { passive: false },
   );
-  window.addEventListener('touchend', () => (touch = null));
+  const endTouch = () => {
+    if (touch?.axis === 'x') {
+      const flick = Math.abs(touch.v) > 0.4 && performance.now() - touch.t < 120;
+      settle(flick ? (touch.v < 0 ? 1 : -1) : 0);
+    }
+    touch = null;
+  };
+  window.addEventListener('touchend', endTouch);
+  window.addEventListener('touchcancel', endTouch);
 
   // Tabbing to a link in another layer brings that layer into view.
   world.addEventListener('focusin', (e) => {
