@@ -9,8 +9,9 @@
 // for a moment so there's time to read.
 //
 // The output layer is a set of choices. Hovering (or tapping) one gives it the
-// network's vote: the edges into it strengthen, the others fade, and the
-// softmax shown next to each choice swings towards it.
+// network's vote: the edges into it strengthen in proportion to their weight
+// (strong contributors go bold, weak ones barely move), the others fade, and
+// the softmax shown next to each choice swings towards it.
 
 const AXON = 0.3;
 const EDGES = 0.6;
@@ -84,6 +85,13 @@ export function mountForward(track: HTMLElement) {
       c.el.toggleAttribute('data-hover', c === n);
     }
     choiceBox?.toggleAttribute('data-hovering', !!n);
+  }
+  // Each edge's share of the strongest weight into the same choice.
+  const rel = new Map<Edge, number>();
+  for (const n of choices) {
+    const into = edges.filter((e) => e.dst === n);
+    const max = Math.max(...into.map((e) => e.w));
+    for (const e of into) rel.set(e, e.w / max);
   }
   for (const n of choices) {
     n.el.addEventListener('pointerenter', () => pick(n));
@@ -182,7 +190,7 @@ export function mountForward(track: HTMLElement) {
       const phase = (f - e.src.layer - AXON) / EDGES;
       const delay = (1 - e.w) * 0.35;
       e.t = clamp01((phase - delay) / 0.65);
-      e.phase -= dt * 12 * (0.6 + e.w) * (1 + e.dst.h * 2.5);
+      e.phase -= dt * 12 * (0.6 + e.w) * (1 + e.dst.h * e.w * 2.5);
     }
     // Activations.
     for (const n of neurons) {
@@ -238,9 +246,9 @@ export function mountForward(track: HTMLElement) {
       const c = [p0, { x: p0.x + dx, y: p0.y }, { x: p3.x - dx, y: p3.y }, p3] as const;
 
       // Hover: edges into the picked choice strengthen, the rest fade.
-      const boost = e.dst.h;
-      const fade = 1 - 0.75 * Math.max(0, pull - boost);
-      const thick = 1 + boost * 1.6;
+      const boost = e.dst.h * (rel.get(e) ?? 0) ** 2;
+      const fade = 1 - 0.75 * Math.max(0, pull - e.dst.h);
+      const thick = 1 + boost * 2.2;
 
       // The track: always visible, faint.
       ctx.setLineDash([]);

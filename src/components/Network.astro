@@ -1,6 +1,6 @@
 ---
 import Neuron from './Neuron.astro';
-import { person, experience, projects, output, weights, BASE_WEIGHT, OUT_WEIGHT } from '../data/profile';
+import { person, experience, projects, output, weights, BASE_WEIGHT, outWeights } from '../data/profile';
 
 const layers = [
   { name: 'input', count: 1 },
@@ -9,13 +9,14 @@ const layers = [
   { name: 'output', count: output.choices.length },
 ];
 
-// Edge weights keyed "src>dst". Input fans out evenly; projects feed every output choice evenly.
+// Edge weights keyed "src>dst". Input fans out evenly; the rest come from profile.ts.
 const w: Record<string, number> = {};
 for (const e of experience) {
   w[`me>${e.id}`] = 1;
   for (const p of projects) w[`${e.id}>${p.id}`] = weights[e.id]?.[p.id] ?? BASE_WEIGHT;
 }
-for (const p of projects) for (const c of output.choices) w[`${p.id}>${c.id}`] = OUT_WEIGHT;
+for (const p of projects)
+  for (const c of output.choices) w[`${p.id}>${c.id}`] = outWeights[p.id]?.[c.id] ?? BASE_WEIGHT;
 
 const links = output.links.filter((l) => l.href);
 

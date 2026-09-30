@@ -136,5 +136,15 @@ export const output = {
   ],
   email: 'rishi.potipireddi@gmail.com',
 };
-/** Weight on every project → output-choice edge. */
-export const OUT_WEIGHT = 0.6;
+/**
+ * Weights from projects to output choices, 0–1: how much each project
+ * backs up that choice. Unlisted pairs get BASE_WEIGHT.
+ */
+export const outWeights: Record<string, Record<string, number>> = {
+  adyou: { skills: 0.9, leadership: 0.7, certs: 0.5, education: 0.2 },
+  clarity: { skills: 0.6, leadership: 0.4, education: 0.3 },
+  myeditor: { skills: 0.7, education: 0.5 },
+  'kafka-mcp': { certs: 0.95, skills: 0.8 },
+  'boring-money': { skills: 0.7, education: 0.2 },
+  'fin-copilot': { certs: 0.7, skills: 0.6, education: 0.4 },
+};

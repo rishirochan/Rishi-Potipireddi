@@ -15,7 +15,7 @@ softmax next to each choice towards it.
 ## Content
 
 Everything on the page comes from `src/data/profile.ts`: experience, projects,
-the experience→project edge weights, and the output layer's choices and links.
+the experience→project and project→choice edge weights, and the output layer's choices and links.
 
 ## Develop
 
