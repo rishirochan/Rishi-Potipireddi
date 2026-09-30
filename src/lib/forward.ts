@@ -252,33 +252,36 @@ export function mountForward(track: HTMLElement) {
       goTo(Math.ceil(s - 0.5) - 1);
     }
   });
-  // Horizontal gestures (trackpad swipes, shift+wheel, touch drags) are the
-  // vertical scroll rotated 90°: right/left = down/up, 1px for 1px, so a swipe
-  // covers exactly the distance the same vertical scroll would.
-
-  // Checkpoint lock for horizontal gestures: the same behaviour vertical
-  // scrolling gets from scroll-snap. Native snap is paused while a swipe is in
-  // progress (it would fight the programmatic scrolling), then, once the swipe
-  // ends, we settle on the nearest layer if we're close to one, or on the next
-  // layer in the swipe's direction if it was a flick.
-  // Chrome's y-axis `proximity` snap grabs within a third of the viewport height.
-  const snapRange = () => Math.min(0.5, window.innerHeight / 3 / seg);
+  // Horizontal gestures (trackpad swipes, shift+wheel, touch drags) page
+  // through the layers: right/left = down/up, 1px for 1px while the gesture
+  // runs, but a single gesture can't travel more than one layer, and when it
+  // ends it always lands on a layer (the next one if it went far enough or was
+  // a flick, otherwise back where it started).
+  const NEXT = 0.12; // layers of travel that commit to the next layer
   const root = document.documentElement;
-  let settleTimer = 0;
-  const holdSnap = () => {
-    clearTimeout(settleTimer);
-    root.style.scrollSnapType = 'none';
-  };
-  function settle(flick = 0) {
+  let origin: number | null = null; // layer the current gesture started on
+  let snapTimer = 0;
+
+  function drag(dy: number) {
     readScroll();
-    const target = flick
-      ? flick > 0
-        ? Math.floor(s + 1e-3) + 1
-        : Math.ceil(s - 1e-3) - 1
-      : Math.round(s);
-    if (flick || Math.abs(s - target) < snapRange()) goTo(target);
-    // Hand snapping back to the stylesheet once the smooth scroll has landed.
-    settleTimer = window.setTimeout(() => (root.style.scrollSnapType = ''), reduced ? 0 : 700);
+    if (origin === null) {
+      origin = Math.round(s);
+      clearTimeout(snapTimer);
+      root.style.scrollSnapType = 'none'; // native snap would fight the drag
+    }
+    const lo = track.offsetTop + Math.max(0, origin - 1) * seg;
+    const hi = track.offsetTop + Math.min(L - 1, origin + 1) * seg;
+    const top = Math.max(lo, Math.min(hi, window.scrollY + dy));
+    window.scrollTo({ top, behavior: 'instant' });
+  }
+  function release(flick = 0) {
+    if (origin === null) return;
+    readScroll();
+    const d = s - origin;
+    const dir = flick || (d > NEXT ? 1 : d < -NEXT ? -1 : 0);
+    goTo(origin + dir);
+    origin = null;
+    snapTimer = window.setTimeout(() => (root.style.scrollSnapType = ''), reduced ? 0 : 800);
   }
 
   let wheelIdle = 0;
@@ -287,11 +290,11 @@ export function mountForward(track: HTMLElement) {
     (e) => {
       if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
       e.preventDefault();
-      holdSnap();
-      window.scrollBy({ top: e.deltaX, behavior: 'instant' });
-      // Trackpad inertia keeps emitting wheel events; settle when they stop.
+      drag(e.deltaX);
+      // Trackpad momentum keeps emitting events (clamped by drag, so it can't
+      // overshoot); land once they stop.
       clearTimeout(wheelIdle);
-      wheelIdle = window.setTimeout(() => settle(), 140);
+      wheelIdle = window.setTimeout(() => release(), 120);
     },
     { passive: false },
   );
@@ -310,8 +313,7 @@ export function mountForward(track: HTMLElement) {
       if (!touch.axis && Math.hypot(dx, dy) > 8) touch.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
       if (touch.axis !== 'x') return;
       e.preventDefault();
-      holdSnap();
-      window.scrollBy({ top: -dx, behavior: 'instant' });
+      drag(-dx);
       const now = performance.now();
       // Smoothed finger velocity (px/ms) for flick detection.
       touch.v = 0.6 * (dx / Math.max(1, now - touch.t)) + 0.4 * touch.v;
@@ -323,8 +325,8 @@ export function mountForward(track: HTMLElement) {
   );
   const endTouch = () => {
     if (touch?.axis === 'x') {
-      const flick = Math.abs(touch.v) > 0.4 && performance.now() - touch.t < 120;
-      settle(flick ? (touch.v < 0 ? 1 : -1) : 0);
+      const flick = Math.abs(touch.v) > 0.3 && performance.now() - touch.t < 120;
+      release(flick ? (touch.v < 0 ? 1 : -1) : 0);
     }
     touch = null;
   };
