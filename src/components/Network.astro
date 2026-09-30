@@ -1,21 +1,21 @@
 ---
 import Neuron from './Neuron.astro';
-import { person, experience, projects, output, weights, BASE_WEIGHT } from '../data/profile';
+import { person, experience, projects, output, weights, BASE_WEIGHT, OUT_WEIGHT } from '../data/profile';
 
 const layers = [
   { name: 'input', count: 1 },
   { name: 'experience', count: experience.length },
   { name: 'projects', count: projects.length },
-  { name: 'output', count: 1 },
+  { name: 'output', count: output.choices.length },
 ];
 
-// Edge weights keyed "src>dst". Input fans out evenly; projects converge evenly.
+// Edge weights keyed "src>dst". Input fans out evenly; projects feed every output choice evenly.
 const w: Record<string, number> = {};
 for (const e of experience) {
   w[`me>${e.id}`] = 1;
   for (const p of projects) w[`${e.id}>${p.id}`] = weights[e.id]?.[p.id] ?? BASE_WEIGHT;
 }
-for (const p of projects) w[`${p.id}>out`] = 0.8;
+for (const p of projects) for (const c of output.choices) w[`${p.id}>${c.id}`] = OUT_WEIGHT;
 
 const links = output.links.filter((l) => l.href);
 
@@ -118,19 +118,9 @@ const mmCols = layers.map((l, i) =>
       </section>
 
       <section class="layer layer-out" style="--i: 3" aria-label="More about me">
-        <Neuron id="out" layer={3} last>
-          <h2 slot="title" class="text-2xl font-light tracking-tight md:text-3xl">{person.name}</h2>
-          <dl class="mt-5 grid gap-x-8 gap-y-1 font-mono text-xs md:grid-cols-[6.5rem_1fr] md:gap-y-4">
-            <dt class="label mt-3 md:mt-0">education</dt>
-            <dd class="text-paper/75">{output.education}</dd>
-            <dt class="label mt-3 md:mt-0">skills</dt>
-            <dd class="leading-relaxed text-paper/75">{output.skills.join(' · ')}</dd>
-            <dt class="label mt-3 md:mt-0">certs</dt>
-            <dd class="leading-relaxed text-paper/75">{output.certs.join(' · ')}</dd>
-            <dt class="label mt-3 md:mt-0">leadership</dt>
-            <dd class="leading-relaxed text-paper/75">{output.leadership}</dd>
-          </dl>
-          <div class="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-paper/10 pt-5 font-mono text-sm">
+        <header>
+          <h2 class="text-4xl leading-none font-light tracking-tight md:text-5xl">{person.name}</h2>
+          <div class="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 font-mono text-sm">
             {
               links.map((l) => (
                 <a href={l.href} target="_blank" rel="noopener me" class="text-paper/80 hover:text-paper">
@@ -140,7 +130,22 @@ const mmCols = layers.map((l, i) =>
             }
             <span class="break-all text-paper/80 select-all">{output.email}</span>
           </div>
-        </Neuron>
+        </header>
+        <div data-choices class="choices flex flex-col border-t border-paper/10 pt-6">
+          {
+            output.choices.map((c) => (
+              <Neuron id={c.id} layer={3} last class="choice">
+                <h3 slot="title" class="text-lg leading-tight">
+                  {c.label}
+                </h3>
+                <span slot="end" data-p class="w-8 flex-none text-right font-mono text-[11px] text-paper/45 tabular-nums">
+                  {(1 / output.choices.length).toFixed(2)}
+                </span>
+                <p class="text-[13px] leading-snug text-paper/65">{c.text}</p>
+              </Neuron>
+            ))
+          }
+        </div>
       </section>
     </div>
 
