@@ -7,12 +7,17 @@
 // A neuron's activation is the weighted share of its incoming edges that have
 // delivered. The camera follows the same scroll, but holds still on each layer
 // for a moment so there's time to read.
+//
+// The output layer is a set of choices. Hovering (or tapping) one gives it the
+// network's vote: the edges into it strengthen, the others fade, and the
+// softmax shown next to each choice swings towards it.
 
 const AXON = 0.3;
 const EDGES = 0.6;
 const LEAD = 0.3; // how far the signal runs ahead of the camera
 const PAPER = '250,250,250';
 const SIGNAL_HI = '91,143,156';
+const PICK_LOGIT = 3.2; // how hard a hovered choice wins the softmax
 
 type Pt = { x: number; y: number };
 interface NeuronRef {
@@ -23,12 +28,15 @@ interface NeuronRef {
   outPt: Pt | null; // world coords of the terminal
   a: number;
   fired: boolean;
+  h: number; // hover emphasis, eased towards hTarget
+  hTarget: number;
 }
 interface Edge {
   src: NeuronRef;
   dst: NeuronRef;
   w: number;
   t: number;
+  phase: number; // dash offset of the resting trickle
 }
 
 export function mountForward(track: HTMLElement) {
@@ -53,13 +61,38 @@ export function mountForward(track: HTMLElement) {
     outPt: null,
     a: 0,
     fired: false,
+    h: 0,
+    hTarget: 0,
   }));
   const L = layerEls.length;
   const byLayer = Array.from({ length: L }, (_, l) => neurons.filter((n) => n.layer === l));
   const edges: Edge[] = [];
   for (let l = 0; l < L - 1; l++)
     for (const src of byLayer[l])
-      for (const dst of byLayer[l + 1]) edges.push({ src, dst, w: weights[`${src.id}>${dst.id}`] ?? 0.5, t: 0 });
+      for (const dst of byLayer[l + 1]) edges.push({ src, dst, w: weights[`${src.id}>${dst.id}`] ?? 0.5, t: 0, phase: 0 });
+
+  // ---- output choices -----------------------------------------------------
+  const choiceBox = world.querySelector<HTMLElement>('[data-choices]');
+  const choices = byLayer[L - 1];
+  const probEls = choices.map((n) => n.el.querySelector<HTMLElement>('[data-p]'));
+  let hovered: NeuronRef | null = null;
+  function pick(n: NeuronRef | null) {
+    if (n === hovered) return;
+    hovered = n;
+    for (const c of choices) {
+      c.hTarget = c === n ? 1 : 0;
+      c.el.toggleAttribute('data-hover', c === n);
+    }
+    choiceBox?.toggleAttribute('data-hovering', !!n);
+  }
+  for (const n of choices) {
+    n.el.addEventListener('pointerenter', () => pick(n));
+    // A tap has no hover to leave, so a touch pick sticks until the next tap.
+    n.el.addEventListener('pointerleave', (e) => e.pointerType !== 'touch' && hovered === n && pick(null));
+  }
+  document.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch' && !(e.target as Element).closest('.choice')) pick(null);
+  });
 
   // ---- measurement --------------------------------------------------------
   let W = 0;
@@ -132,11 +165,24 @@ export function mountForward(track: HTMLElement) {
     }
     stage.style.setProperty('--cam', cam.toFixed(4));
 
+    // Hover emphasis and the output softmax.
+    const kh = reduced ? 1 : 1 - Math.exp(-dt / 0.14);
+    let z = 0;
+    for (const c of choices) {
+      c.h += (c.hTarget - c.h) * kh;
+      z += Math.exp(c.h * PICK_LOGIT);
+    }
+    choices.forEach((c, i) => {
+      const el = probEls[i];
+      if (el) el.textContent = (Math.exp(c.h * PICK_LOGIT) / z).toFixed(2);
+    });
+
     // Edge progress, strong weights first.
     for (const e of edges) {
       const phase = (f - e.src.layer - AXON) / EDGES;
       const delay = (1 - e.w) * 0.35;
       e.t = clamp01((phase - delay) / 0.65);
+      e.phase -= dt * 12 * (0.6 + e.w) * (1 + e.dst.h * 2.5);
     }
     // Activations.
     for (const n of neurons) {
@@ -176,11 +222,12 @@ export function mountForward(track: HTMLElement) {
   }
 
   // ---- drawing ------------------------------------------------------------
-  function draw(now: number) {
+  function draw() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
     const ox = -cam * spacing;
-    const drift = reduced ? 0 : -now * 0.012;
+    let pull = 0; // how much any choice is being hovered
+    for (const c of choices) pull = Math.max(pull, c.h);
 
     for (const e of edges) {
       if (!e.src.outPt) continue;
@@ -190,18 +237,28 @@ export function mountForward(track: HTMLElement) {
       const dx = (p3.x - p0.x) * 0.5;
       const c = [p0, { x: p0.x + dx, y: p0.y }, { x: p3.x - dx, y: p3.y }, p3] as const;
 
+      // Hover: edges into the picked choice strengthen, the rest fade.
+      const boost = e.dst.h;
+      const fade = 1 - 0.75 * Math.max(0, pull - boost);
+      const thick = 1 + boost * 1.6;
+
       // The track: always visible, faint.
       ctx.setLineDash([]);
-      ctx.lineWidth = 0.6 + e.w * 0.4;
-      ctx.strokeStyle = `rgba(${PAPER},${0.035 + e.w * 0.05})`;
+      ctx.lineWidth = (0.6 + e.w * 0.4) * thick;
+      ctx.strokeStyle = `rgba(${PAPER},${(0.035 + e.w * 0.05 + boost * 0.12) * fade})`;
       bezier(ctx, c);
 
       if (e.t <= 0) continue;
       // The lit part of the track, from the source up to the pulse.
       const lit = e.t >= 1 ? c : split(c, e.t);
-      ctx.lineWidth = 0.6 + e.w * 0.9;
-      ctx.strokeStyle = `rgba(${SIGNAL_HI},${0.12 + e.w * 0.6})`;
+      ctx.lineWidth = (0.6 + e.w * 0.9) * thick;
+      ctx.strokeStyle = `rgba(${SIGNAL_HI},${Math.min(1, (0.12 + e.w * 0.6) * fade + boost * 0.5)})`;
+      if (boost > 0.01) {
+        ctx.shadowColor = `rgba(${SIGNAL_HI},${boost})`;
+        ctx.shadowBlur = 10 * boost;
+      }
       bezier(ctx, lit);
+      ctx.shadowBlur = 0;
 
       if (e.t < 1) {
         // Pulse head.
@@ -218,9 +275,9 @@ export function mountForward(track: HTMLElement) {
       } else if (!reduced && e.w > 0.3) {
         // Once delivered, strong connections keep a slow trickle of signal.
         ctx.setLineDash([1.5, 14]);
-        ctx.lineDashOffset = drift * (0.6 + e.w);
-        ctx.lineWidth = 1.2;
-        ctx.strokeStyle = `rgba(${PAPER},${0.35 * e.w})`;
+        ctx.lineDashOffset = e.phase;
+        ctx.lineWidth = 1.2 + boost * 0.8;
+        ctx.strokeStyle = `rgba(${PAPER},${Math.min(1, 0.35 * e.w * fade + boost * 0.5)})`;
         bezier(ctx, c);
       }
     }
@@ -230,7 +287,7 @@ export function mountForward(track: HTMLElement) {
   // ---- loop ---------------------------------------------------------------
   function frame(now: number) {
     update(now);
-    draw(now);
+    draw();
     requestAnimationFrame(frame);
   }
 
@@ -289,8 +346,8 @@ export function mountForward(track: HTMLElement) {
 
   // Tabbing to a link in another layer brings that layer into view.
   world.addEventListener('focusin', (e) => {
-    const n = (e.target as Element).closest<HTMLElement>('[data-neuron]');
-    if (n && Number(n.dataset.layer) !== Math.round(s)) goTo(Number(n.dataset.layer));
+    const l = layerEls.indexOf((e.target as Element).closest<HTMLElement>('.layer')!);
+    if (l >= 0 && l !== Math.round(s)) goTo(l);
   });
 
   new ResizeObserver(measure).observe(stage);
