@@ -347,32 +347,43 @@ export function mountForward(track: HTMLElement) {
     settle(to);
   }
 
-  // A wheel gesture (a notch burst, or a trackpad movement and its momentum)
-  // starts undecided and doesn't move the page yet. Enough travel within
-  // SWIPE_MS makes it a swipe: one step, and the rest of the gesture is
-  // ignored, exactly as before. Otherwise it's a drag.
-  const SWIPE_MS = 110;
-  const IDLE_MS = 140; // no events this long = fingers lifted
-  let gesture: { t0: number; held: number; recent: { t: number; d: number }[]; mode: 'open' | 'swipe' | 'drag' } | null = null;
+  // Trackpads send one stream of wheel events whether the fingers are down or
+  // the page is coasting after they lift, so the page follows the stream from
+  // the first event and the gesture is judged by how it ends:
+  //   - a flick leaves momentum behind (deltas decaying smoothly from speed):
+  //     that's a swipe, so animate on to the next layer in that direction;
+  //   - no momentum (fingers slowed and lifted, or just stopped): snap to
+  //     whichever layer is closer.
+  // A mouse wheel notch (one big delta) still steps one layer.
+  const NOTCH = 50; // px in a single event: a wheel notch, not a trackpad
+  const IDLE_MS = 140; // no events this long = the gesture is over
+  const FLICK_V = 0.6; // px/ms at the start of a decay that counts as a flick
+  const DECAY_N = 5; // consecutive shrinking deltas that make a momentum tail
+  let gesture: {
+    from: number | null; // layer an earlier step was still animating to
+    last: number; // time of the previous event
+    trail: { d: number; v: number }[]; // recent deltas and speeds, newest last
+    done: boolean; // stepped; ignore the rest of this gesture
+  } | null = null;
   let wheelIdle = 0;
   function endGesture() {
     const g = gesture;
     gesture = null;
     dragging = false;
-    if (g?.mode !== 'drag') return; // swipes (and taps too small to decide) don't snap
-    // Released mid-drag: snap (animated) to whichever layer is closer.
+    if (!g || g.done) return;
+    // Released without a flick: snap (animated) to whichever layer is closer.
     readScroll();
     settle(Math.max(0, Math.min(L - 1, Math.round(s))));
   }
-  function drag(d: number, now: number) {
-    // Quicker fingers cover more ground; slow ones give fine control.
-    const v = gesture!.recent.length > 1 ? Math.abs(d) / Math.max(8, now - gesture!.recent[gesture!.recent.length - 2].t) : 0;
-    const gain = 1.8 + Math.min(1.6, v * 1.2);
-    dragging = true;
-    pending = null;
-    clearTimeout(pendingTimer);
-    root.setAttribute('data-dragging', '');
-    window.scrollTo({ top: window.scrollY + d * gain, behavior: 'instant' });
+  function flick(g: NonNullable<typeof gesture>, dir: 1 | -1) {
+    g.done = true;
+    dragging = false;
+    readScroll();
+    // On from where the page is (or from a step still in flight, the same way),
+    // to the next layer boundary ahead.
+    let to = dir > 0 ? Math.floor(s + 0.02) + 1 : Math.ceil(s - 0.02) - 1;
+    if (g.from !== null && Math.sign(g.from - s) === dir) to = g.from + dir;
+    settle(Math.max(0, Math.min(L - 1, to)));
   }
   window.addEventListener(
     'wheel',
@@ -384,28 +395,40 @@ export function mountForward(track: HTMLElement) {
       const now = performance.now();
       clearTimeout(wheelIdle);
       wheelIdle = window.setTimeout(endGesture, IDLE_MS);
-      gesture ??= { t0: now, held: 0, recent: [], mode: 'open' };
-      const g = gesture;
-      if (g.mode === 'swipe') return;
-      g.recent.push({ t: now, d });
-      while (g.recent.length > 1 && now - g.recent[0].t > SWIPE_MS) g.recent.shift();
-
-      if (g.mode === 'open') {
-        g.held += d;
-        const acc = g.recent.reduce((a, r) => a + r.d, 0);
-        if (Math.abs(acc) >= TRIGGER && now - g.t0 <= SWIPE_MS) {
-          g.mode = 'swipe';
-          step(acc > 0 ? 1 : -1);
+      if (!gesture) {
+        gesture = { from: pending, last: now - 16, trail: [], done: false };
+        if (Math.abs(d) >= NOTCH) {
+          gesture.done = true;
+          step(d > 0 ? 1 : -1);
           return;
         }
-        if (now - g.t0 <= SWIPE_MS) return;
-        // Too slow for a swipe: the fingers are steering. Catch up on what
-        // was held back while deciding, then follow.
-        g.mode = 'drag';
-        drag(g.held, now);
-        return;
       }
-      drag(d, now);
+      const g = gesture;
+      if (g.done || d === 0) return;
+      const v = Math.abs(d) / Math.max(4, now - g.last);
+      g.last = now;
+      g.trail.push({ d, v });
+      if (g.trail.length > DECAY_N + 1) g.trail.shift();
+
+      // Momentum: the last DECAY_N deltas all one way, each smaller than the
+      // one before, falling from flick speed.
+      const t = g.trail;
+      if (t.length === DECAY_N + 1 && t[0].v >= FLICK_V) {
+        const dir = Math.sign(t[0].d);
+        let decaying = t[t.length - 1].v < t[0].v * 0.97;
+        for (let i = 1; i < t.length && decaying; i++)
+          decaying = Math.sign(t[i].d) === dir && Math.abs(t[i].d) < Math.abs(t[i - 1].d);
+        if (decaying) return flick(g, dir as 1 | -1);
+      }
+
+      // Fingers down: the page follows 1:1-ish. About 450px of finger travel
+      // per layer, a bit further per px when moving quickly.
+      const gain = (seg / 450) * (1 + Math.min(0.8, v * 0.4));
+      dragging = true;
+      pending = null;
+      clearTimeout(pendingTimer);
+      root.setAttribute('data-dragging', '');
+      window.scrollTo({ top: window.scrollY + d * gain, behavior: 'instant' });
     },
     { passive: false },
   );
