@@ -242,20 +242,10 @@ export function mountForward(track: HTMLElement) {
   stage.querySelectorAll<HTMLButtonElement>('[data-jump]').forEach((b) =>
     b.addEventListener('click', () => goTo(Number(b.dataset.jump))),
   );
-  window.addEventListener('keydown', (e) => {
-    if (e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey || e.altKey) return;
-    if (e.key === 'ArrowRight') {
-      e.preventDefault();
-      goTo(Math.floor(s + 0.5) + 1);
-    } else if (e.key === 'ArrowLeft') {
-      e.preventDefault();
-      goTo(Math.ceil(s - 0.5) - 1);
-    }
-  });
-  // Horizontal gestures (trackpad swipes, shift+wheel, touch drags) don't drag
-  // the page; each one is a single step: right/left = next/previous layer. The
-  // swipe only picks the direction, then the page animates the whole way there,
-  // so it can never come to rest between two layers.
+  // Scrolling and swiping, in either direction, don't drag the page; each
+  // gesture is a single step: down/right = next layer, up/left = previous. The
+  // gesture only picks the direction, then the page animates the whole way
+  // there, so it can never come to rest between two layers.
   const TRIGGER = 30; // px of swipe before it counts
   let pending: number | null = null; // layer we're animating to
   let pendingTimer = 0;
@@ -270,14 +260,14 @@ export function mountForward(track: HTMLElement) {
     pendingTimer = window.setTimeout(() => (pending = null), 900);
   }
 
-  // One wheel gesture (including a trackpad's momentum tail) = one step.
+  // One wheel gesture (a notch burst, or a trackpad swipe and its momentum) = one step.
   let wheelAcc = 0;
   let wheelUsed = false;
   let wheelIdle = 0;
   window.addEventListener(
     'wheel',
     (e) => {
-      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+      if (e.ctrlKey) return; // pinch-zoom
       e.preventDefault();
       clearTimeout(wheelIdle);
       wheelIdle = window.setTimeout(() => {
@@ -285,7 +275,7 @@ export function mountForward(track: HTMLElement) {
         wheelUsed = false;
       }, 150);
       if (wheelUsed) return;
-      wheelAcc += e.deltaX;
+      wheelAcc += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
       if (Math.abs(wheelAcc) >= TRIGGER) {
         wheelUsed = true;
         step(wheelAcc > 0 ? 1 : -1);
@@ -307,11 +297,12 @@ export function mountForward(track: HTMLElement) {
       const dx = t.clientX - touch.x0;
       const dy = t.clientY - touch.y0;
       if (!touch.axis && Math.hypot(dx, dy) > 8) touch.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
-      if (touch.axis !== 'x') return;
+      if (!touch.axis) return;
       e.preventDefault();
-      if (!touch.used && Math.abs(dx) >= TRIGGER) {
+      const d = touch.axis === 'x' ? dx : dy;
+      if (!touch.used && Math.abs(d) >= TRIGGER) {
         touch.used = true;
-        step(dx < 0 ? 1 : -1); // finger moves left = go right, like a carousel
+        step(d < 0 ? 1 : -1); // finger moves left/up = next layer
       }
     },
     { passive: false },
@@ -319,6 +310,23 @@ export function mountForward(track: HTMLElement) {
   const endTouch = () => (touch = null);
   window.addEventListener('touchend', endTouch);
   window.addEventListener('touchcancel', endTouch);
+
+  const KEYS: Record<string, 1 | -1> = {
+    ArrowRight: 1, ArrowDown: 1, PageDown: 1, ' ': 1,
+    ArrowLeft: -1, ArrowUp: -1, PageUp: -1,
+  };
+  window.addEventListener('keydown', (e) => {
+    if (e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === 'Home' || e.key === 'End') {
+      e.preventDefault();
+      goTo(e.key === 'Home' ? 0 : L - 1);
+      return;
+    }
+    const dir = KEYS[e.key];
+    if (!dir || (e.key === ' ' && e.target instanceof Element && e.target.closest('button, a'))) return;
+    e.preventDefault();
+    step(e.key === ' ' && e.shiftKey ? -1 : dir);
+  });
 
   // Tabbing to a link in another layer brings that layer into view.
   world.addEventListener('focusin', (e) => {
