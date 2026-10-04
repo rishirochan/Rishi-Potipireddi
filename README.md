@@ -16,6 +16,10 @@ softmax next to each choice towards it.
 
 Everything on the page comes from `src/data/profile.ts`: experience, projects,
 the experience→project and project→choice edge weights, and the output layer's choices and links.
+Clicking an experience opens its feature map, from `src/data/features.ts`
+(diagrams, key numbers, and screenshot tiles; drop images in
+`public/features/<id>/` and set `src`). The loss curve in the output layer's
+corner reads its milestones and stories from `src/data/milestones.ts`.
 
 ## Develop
 

@@ -121,11 +121,16 @@ body {
     --vis: 1;
   }
   .neuron .title,
+  .neuron .axon,
   .neuron [data-p],
   .layer > header {
     opacity: var(--vis);
   }
-  .layer[data-away] :is(.title, .body, [data-p], header) {
+  /* Drawn here rather than with a utility so it fades with the layer too. */
+  .choices {
+    border-top: 1px solid color-mix(in oklab, var(--color-paper) calc(var(--vis) * 10%), transparent);
+  }
+  .layer[data-away] :is(.title, .axon, .body, [data-p], header) {
     visibility: hidden;
   }
   /* Titles always read at full strength; the detail brightens as signal arrives. */
@@ -222,6 +227,12 @@ body {
   .mm[data-on] circle {
     fill: var(--color-signal-hi);
     fill-opacity: 1;
+  }
+
+  /* While a trackpad drags the page, it moves 1:1; the script snaps on release. */
+  html[data-dragging] {
+    scroll-snap-type: none;
+    scroll-behavior: auto;
   }
 
   @media (prefers-reduced-motion: reduce) {

@@ -1,5 +1,7 @@
 ---
 import Neuron from './Neuron.astro';
+import LossCurve from './LossCurve.astro';
+import FeatureMap from './FeatureMap.astro';
 import { person, experience, projects, output, weights, BASE_WEIGHT, outWeights } from '../data/profile';
 
 const layers = [
@@ -88,7 +90,9 @@ const mmCols = layers.map((l, i) =>
           experience.map((e) => (
             <Neuron id={e.id} layer={1}>
               <h2 slot="title" class="truncate text-xl leading-tight">
-                {e.org}
+                <button type="button" data-feature={e.id} aria-haspopup="dialog" aria-label={`${e.org}: open feature map`}>
+                  {e.org} <span class="text-xs text-signal-hi" aria-hidden="true">⊞</span>
+                </button>
               </h2>
               <p class="font-mono text-[11px] text-paper/45">
                 {e.role} <span class="text-signal-hi">·</span> {e.when}
@@ -132,7 +136,7 @@ const mmCols = layers.map((l, i) =>
             <span class="break-all text-paper/80 select-all">{output.email}</span>
           </div>
         </header>
-        <div data-choices class="choices flex flex-col border-t border-paper/10 pt-6">
+        <div data-choices class="choices flex flex-col pt-6">
           {
             output.choices.map((c) => (
               <Neuron id={c.id} layer={3} last class="choice">
@@ -147,10 +151,12 @@ const mmCols = layers.map((l, i) =>
             ))
           }
         </div>
+        <LossCurve />
       </section>
     </div>
 
   </div>
+  <FeatureMap />
 </div>
 
 <noscript>
