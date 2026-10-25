@@ -23,28 +23,28 @@ export const experience: Experience[] = [
     org: 'Amazon',
     role: 'SDE Intern',
     when: 'Fall 2026',
-    line: 'AWS Education Platform.',
+    line: 'AWS T&C Non-metered Billing Service (Skill Builder Platform).',
   },
   {
     id: 'qualcomm',
     org: 'Qualcomm',
     role: 'Agentic AI/ML Intern',
     when: 'Summer 2026',
-    line: 'Agentic browser-testing platform. Cut test latency 96%.',
+    line: 'End-to-end Test Platform (Fabless ML Visualization).',
   },
   {
     id: 'mpower4',
     org: 'MPower4',
     role: 'AI Research Intern',
     when: 'Winter–Spring 2026',
-    line: 'Parallel news agents over 35+ sources into per-portfolio digests.',
+    line: 'Agentic Systems Research (Trade Analysis & Data Platform).',
   },
   {
     id: 'everest',
     org: 'Everest AI Ventures',
     role: 'AI Software Engineer Intern',
     when: '2025',
-    line: 'Self-evaluating multi-agent market research. 60% faster turnaround.',
+    line: 'Self-Evaluating Multi-Agent (AI Market Research System).',
   },
 ];
 
