@@ -155,6 +155,21 @@ const mmCols = layers.map((l, i) =>
       </section>
     </div>
 
+    <!-- Floating island: on every layer but the last, which carries the same links itself. -->
+    <nav
+      data-island
+      aria-label="Contact"
+      class="island absolute bottom-6 left-1/2 z-20 flex max-w-[calc(100vw-2rem)] flex-wrap items-center justify-center gap-x-5 gap-y-1 rounded-full border border-paper/10 bg-ink/70 px-5 py-2.5 font-mono text-xs backdrop-blur-md md:text-sm"
+    >
+      {
+        links.map((l) => (
+          <a href={l.href} target="_blank" rel="noopener me" class="text-paper/80 hover:text-paper">
+            {l.label} <span class="text-signal-hi">↗</span>
+          </a>
+        ))
+      }
+      <a href={`mailto:${output.email}`} class="text-paper/80 hover:text-paper">{output.email}</a>
+    </nav>
   </div>
   <FeatureMap />
 </div>

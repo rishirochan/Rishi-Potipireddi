@@ -48,6 +48,7 @@ export function mountForward(track: HTMLElement) {
   const layerIndex = stage.querySelector<HTMLElement>('[data-layer-index]')!;
   const layerName = stage.querySelector<HTMLElement>('[data-layer-name]')!;
   const mm = [...stage.querySelectorAll<SVGGElement>('[data-mm]')];
+  const island = stage.querySelector<HTMLElement>('[data-island]')!;
   const layerEls = [...world.querySelectorAll<HTMLElement>('.layer')];
   const names = layerEls.map((l) => (l.getAttribute('aria-label') === 'About' ? 'input' : l.getAttribute('aria-label')!.toLowerCase()));
   names[names.length - 1] = 'output';
@@ -181,6 +182,11 @@ export function mountForward(track: HTMLElement) {
       el.style.setProperty('--vis', vis.toFixed(3));
       el.toggleAttribute('data-away', vis < 0.01);
     });
+
+    // The island gives way to the output layer, which carries the links itself.
+    const iv = clamp01((L - 1 - cam) / 0.4);
+    island.style.setProperty('--vis', iv.toFixed(3));
+    island.toggleAttribute('data-away', iv < 0.01);
 
     // Hover emphasis and the output softmax.
     const kh = reduced ? 1 : 1 - Math.exp(-dt / 0.14);

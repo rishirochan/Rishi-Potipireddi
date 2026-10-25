@@ -138,6 +138,14 @@ body {
     opacity: calc((0.6 + var(--a) * 0.4) * var(--vis));
   }
 
+  .island {
+    opacity: var(--vis, 1);
+    transform: translate(-50%, calc((1 - var(--vis, 1)) * 12px));
+  }
+  .island[data-away] {
+    visibility: hidden;
+  }
+
   .soma {
     position: relative;
     flex: none;
