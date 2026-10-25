@@ -61,6 +61,6 @@ export const features: Record<string, Tile[]> = {
     { kind: 'number', value: '60%', label: 'faster turnaround', a: 1 },
     { kind: 'number', value: '30%', label: 'more investor follow-ups', a: 0.8 },
     { kind: 'number', value: '40%', label: 'fewer parsing errors', a: 0.85 },
-    { kind: 'number', value: 'GPT-4o', label: 'langgraph multi-agent', a: 0.6 },
+    { kind: 'number', value: '↻', label: 'worker-evaluator loop', a: 0.6 },
   ],
 };
