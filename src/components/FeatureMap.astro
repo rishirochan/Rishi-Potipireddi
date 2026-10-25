@@ -65,7 +65,7 @@ function diagram(nodes: DiagramNode[], edges: [string, string][]) {
 }
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
-const span = (t: Tile) => (t.kind === 'diagram' ? 'fm-big' : '');
+const span = (t: Tile) => (t.kind === 'diagram' ? 'fm-big' : t.kind === 'status' ? 'fm-wide' : '');
 ---
 
 <dialog data-panel data-fmap class="fm" aria-modal="true" aria-labelledby={maps[0] ? `fm-${maps[0].e.id}` : undefined}>
@@ -139,6 +139,17 @@ const span = (t: Tile) => (t.kind === 'diagram' ? 'fm-big' : '');
                         <p class="text-4xl leading-none font-light tracking-tight md:text-5xl">{t.value}</p>
                         <p class="label mt-2">{t.label}</p>
                       </div>
+                    </li>
+                  );
+
+                if (t.kind === 'status')
+                  return (
+                    <li class:list={['fm-tile', span(t)]} style={style}>
+                      {head}
+                      <p class="mt-auto flex items-center gap-4 text-4xl leading-none font-light tracking-tight md:text-5xl">
+                        <span class="fm-live" aria-hidden="true" />
+                        {t.title}
+                      </p>
                     </li>
                   );
 
@@ -298,7 +309,26 @@ const span = (t: Tile) => (t.kind === 'diagram' ? 'fm-big' : '');
     grid-column: span 2;
     grid-row: span 2;
   }
-
+  /* An in-progress role: one card across the whole grid. */
+  .fm-wide {
+    grid-column: 1 / -1;
+    aspect-ratio: auto;
+    min-height: 18rem;
+  }
+  .fm-live {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 9999px;
+    background: var(--color-signal-hi);
+    box-shadow: 0 0 8px var(--color-signal-hi);
+    animation: fm-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes fm-pulse {
+    50% {
+      opacity: 0.25;
+    }
+  }
   .fm-head {
     position: relative;
     display: flex;
@@ -389,6 +419,9 @@ const span = (t: Tile) => (t.kind === 'diagram' ? 'fm-big' : '');
     .fm-panel,
     .fm-tile {
       transition: none;
+    }
+    .fm-live {
+      animation: none;
     }
   }
 </style>

@@ -78,10 +78,7 @@ const mmCols = layers.map((l, i) =>
       <section class="layer layer-in" style="--i: 0" aria-label="About">
         <Neuron id="me" layer={0} first>
           <h1 slot="title" class="text-4xl leading-none font-light tracking-tight md:text-6xl">{person.name}</h1>
-          <p class="font-mono text-xs text-paper/50">
-            {person.school} <span class="text-signal-hi">·</span>
-            {person.grad}
-          </p>
+          <p class="font-mono text-xs text-paper/50">{person.school}</p>
         </Neuron>
       </section>
 
@@ -133,7 +130,9 @@ const mmCols = layers.map((l, i) =>
                 </a>
               ))
             }
-            <span class="break-all text-paper/80 select-all">{output.email}</span>
+            <a href={`mailto:${output.email}`} class="whitespace-nowrap text-paper/80 hover:text-paper">
+              {output.email} <span class="text-signal-hi">↗</span>
+            </a>
           </div>
         </header>
         <div data-choices class="choices flex flex-col pt-6">
@@ -168,7 +167,9 @@ const mmCols = layers.map((l, i) =>
           </a>
         ))
       }
-      <a href={`mailto:${output.email}`} class="text-paper/80 hover:text-paper">{output.email}</a>
+      <a href={`mailto:${output.email}`} class="whitespace-nowrap text-paper/80 hover:text-paper">
+        {output.email} <span class="text-signal-hi">↗</span>
+      </a>
     </nav>
   </div>
   <FeatureMap />

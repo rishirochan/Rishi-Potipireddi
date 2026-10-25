@@ -5,7 +5,6 @@
 export const person = {
   name: 'Rishi Potipireddi',
   school: 'CS @ UC Irvine',
-  grad: "'27",
   line: 'I build AI agents that plan, act, and check their own work.',
 };
 
