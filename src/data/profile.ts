@@ -44,7 +44,7 @@ export const experience: Experience[] = [
     org: 'Everest AI Ventures',
     role: 'AI Software Engineer Intern',
     when: '2025',
-    line: 'AI Market Research System (Self-Evaluating Multi-Agent).',
+    line: 'Self-Evaluating Multi-Agent (AI Market Research System).',
   },
 ];
 
