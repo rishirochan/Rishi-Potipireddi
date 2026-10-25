@@ -38,7 +38,7 @@ export const features: Record<string, Tile[]> = {
   amazon: [
     {
       kind: 'status',
-      title: 'Currently working here.',
+      title: 'Currently working',
       a: 0.9,
     },
   ],
@@ -48,10 +48,6 @@ export const features: Record<string, Tile[]> = {
     { kind: 'number', value: '10+', label: 'parallel agent runs', a: 0.8 },
     { kind: 'number', value: '100+', label: 'playwright tests maintained', a: 0.7 },
     { kind: 'number', value: '30%', label: 'storage cost cut', a: 0.85 },
-    { kind: 'number', value: '100+', label: 'attendees at ai connect', a: 0.6 },
-    { kind: 'image', caption: 'screenshot' },
-    { kind: 'image', caption: 'screenshot' },
-    { kind: 'image', caption: 'screenshot' },
   ],
 
   mpower4: [
@@ -59,10 +55,6 @@ export const features: Record<string, Tile[]> = {
     { kind: 'number', value: '7', label: 'parallel category agents', a: 0.9 },
     { kind: 'number', value: '4–5s', label: 'latency saved', a: 0.75 },
     { kind: 'number', value: '30%', label: 'token usage cut', a: 0.85 },
-    { kind: 'number', value: 'OWASP', label: 'llm input & output guards', a: 0.6 },
-    { kind: 'image', caption: 'screenshot' },
-    { kind: 'image', caption: 'screenshot' },
-    { kind: 'image', caption: 'screenshot' },
   ],
 
   everest: [
@@ -70,9 +62,5 @@ export const features: Record<string, Tile[]> = {
     { kind: 'number', value: '30%', label: 'more investor follow-ups', a: 0.8 },
     { kind: 'number', value: '40%', label: 'fewer parsing errors', a: 0.85 },
     { kind: 'number', value: 'GPT-4o', label: 'langgraph multi-agent', a: 0.6 },
-    { kind: 'image', caption: 'screenshot' },
-    { kind: 'image', caption: 'screenshot' },
-    { kind: 'image', caption: 'screenshot' },
-    { kind: 'image', caption: 'screenshot' },
   ],
 };
