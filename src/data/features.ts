@@ -4,6 +4,7 @@
 // Tiles, in grid order (a diagram takes a 2×2 block, everything else 1×1):
 //   diagram  how the system is built: nodes on a col/row grid, edges between them
 //   number   one key figure, straight from the résumé
+//   status   a full-width "still training" card for a role that's in progress
 //   image    a screenshot. Drop the file in public/features/<id>/ and set `src`
 //            (e.g. src: '/features/qualcomm/1.png'); without it a placeholder shows.
 // `a` is the channel's activation, 0–1: how strongly the tile is tinted.
@@ -29,15 +30,18 @@ export type Tile = { a?: number } & (
       edges: [string, string][];
     }
   | { kind: 'number'; value: string; label: string }
+  | { kind: 'status'; title: string; text: string }
   | { kind: 'image'; caption: string; src?: string; alt?: string }
 );
 
 export const features: Record<string, Tile[]> = {
   amazon: [
-    { kind: 'number', value: 'aws', label: 'education platform', a: 0.7 },
-    { kind: 'image', caption: 'screenshot' },
-    { kind: 'image', caption: 'screenshot' },
-    { kind: 'image', caption: 'screenshot' },
+    {
+      kind: 'status',
+      title: 'Still training.',
+      text: 'This layer is learning right now on AWS Skill Builder. Weights converge in Dec 2026; check back for the feature map.',
+      a: 0.9,
+    },
   ],
 
   qualcomm: [
