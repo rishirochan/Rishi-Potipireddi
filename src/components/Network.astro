@@ -78,10 +78,7 @@ const mmCols = layers.map((l, i) =>
       <section class="layer layer-in" style="--i: 0" aria-label="About">
         <Neuron id="me" layer={0} first>
           <h1 slot="title" class="text-4xl leading-none font-light tracking-tight md:text-6xl">{person.name}</h1>
-          <p class="font-mono text-xs text-paper/50">
-            {person.school} <span class="text-signal-hi">·</span>
-            {person.grad}
-          </p>
+          <p class="font-mono text-xs text-paper/50">{person.school}</p>
         </Neuron>
       </section>
 
