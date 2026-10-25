@@ -8,27 +8,38 @@ const START = 1; // loss at initialisation, before the first checkpoint
 const W = 260;
 const H = 96;
 const PAD = { l: 1, r: 8, t: 8, b: 1 };
-const loss = [START, ...milestones.map((m) => m.loss)];
+const DAY = 86_400_000;
+const ms = [...milestones].sort((a, b) => a.date.localeCompare(b.date));
+const loss = [START, ...ms.map((m) => m.loss)];
 const N = loss.length - 1;
-const X = (e: number) => PAD.l + (e / N) * (W - PAD.l - PAD.r);
+
+// The x axis is time: initialisation sits a few months before the first
+// checkpoint, the last checkpoint at the right edge.
+const t = ms.map((m) => Date.parse(m.date));
+t.unshift(t[0] - 120 * DAY);
+const X = (time: number) => PAD.l + ((time - t[0]) / (t[N] - t[0])) * (W - PAD.l - PAD.r);
 const Y = (v: number) => PAD.t + (1 - v / START) * (H - PAD.t - PAD.b);
 
-// Smoothed curve: monotone cubic (Fritsch–Carlson) through the checkpoints in
-// log space, so it only ever goes down and decays like a real run.
+// Smoothed curve: monotone cubic (Fritsch–Carlson, uneven spacing) through the
+// checkpoints in log space, so it only ever goes down and decays like a real run.
 const lg = loss.map(Math.log);
-const d = lg.slice(1).map((v, i) => v - lg[i]);
-const m = lg.map((_, i) => (i === 0 ? d[0] : i === N ? d[N - 1] : 2 / (1 / d[i - 1] + 1 / d[i])));
-function smooth(e: number) {
-  const i = Math.min(Math.floor(e), N - 1);
-  const t = e - i;
-  const t2 = t * t;
-  const t3 = t2 * t;
-  return Math.exp((2 * t3 - 3 * t2 + 1) * lg[i] + (t3 - 2 * t2 + t) * m[i] + (-2 * t3 + 3 * t2) * lg[i + 1] + (t3 - t2) * m[i + 1]);
+const h = t.slice(1).map((v, i) => v - t[i]);
+const d = h.map((hi, i) => (lg[i + 1] - lg[i]) / hi);
+const m = lg.map((_, i) =>
+  i === 0 ? d[0] : i === N ? d[N - 1] : (3 * (h[i - 1] + h[i])) / ((2 * h[i] + h[i - 1]) / d[i - 1] + (h[i] + 2 * h[i - 1]) / d[i]),
+);
+function smooth(time: number) {
+  let i = 0;
+  while (i < N - 1 && time > t[i + 1]) i++;
+  const u = (time - t[i]) / h[i];
+  const u2 = u * u;
+  const u3 = u2 * u;
+  return Math.exp((2 * u3 - 3 * u2 + 1) * lg[i] + (u3 - 2 * u2 + u) * h[i] * m[i] + (-2 * u3 + 3 * u2) * lg[i + 1] + (u3 - u2) * h[i] * m[i + 1]);
 }
 
 // Raw curve: the smoothed one plus seeded, slightly correlated noise and the
-// odd spike. Same seed, same curve on every build.
-const STEPS = 36; // samples per epoch
+// odd spike, sampled evenly along x. Same seed, same curve on every build.
+const SAMPLES = 180;
 let seed = 11;
 const rand = () => {
   seed = (seed + 0x6d2b79f5) | 0;
@@ -39,19 +50,24 @@ const rand = () => {
 let wander = 0;
 const raw: string[] = [];
 const fit: string[] = [];
-for (let k = 0; k <= N * STEPS; k++) {
-  const e = k / STEPS;
-  const base = smooth(e);
+for (let k = 0; k <= SAMPLES; k++) {
+  const time = t[0] + (k / SAMPLES) * (t[N] - t[0]);
+  const base = smooth(time);
   wander = wander * 0.55 + (rand() + rand() - 1) * 0.45;
   const spike = rand() < 0.02 ? rand() * 0.35 : 0;
   const v = Math.min(START * 1.04, base * Math.exp(wander * 0.4 + spike));
-  raw.push(`${X(e).toFixed(1)},${Y(v).toFixed(1)}`);
-  fit.push(`${X(e).toFixed(1)},${Y(base).toFixed(1)}`);
+  raw.push(`${X(time).toFixed(1)},${Y(v).toFixed(1)}`);
+  fit.push(`${X(time).toFixed(1)},${Y(base).toFixed(1)}`);
 }
 const rawPath = `M${raw.join('L')}`;
 const fitPath = `M${fit.join('L')}`;
 
-const points = milestones.map((ms, i) => ({ ...ms, epoch: i + 1, x: X(i + 1), y: Y(ms.loss) }));
+const points = ms.map((p, i) => ({ ...p, epoch: i + 1, x: X(t[i + 1]), y: Y(p.loss) }));
+
+// Year marks under the axis: the first year at the left edge, then each 1 Jan.
+const y0 = new Date(t[0]).getUTCFullYear();
+const years = [{ year: y0, x: 0, tick: false }];
+for (let y = y0 + 1; y <= new Date(t[N]).getUTCFullYear(); y++) years.push({ year: y, x: X(Date.UTC(y, 0, 1)), tick: true });
 const fmt = (v: number) => v.toFixed(2);
 ---
 
@@ -75,7 +91,12 @@ const fmt = (v: number) => v.toFixed(2);
       <path d={rawPath} pathLength="1" class="raw" />
       <path d={fitPath} pathLength="1" class="fit" />
       <line data-guide x1="0" y1="0" x2="0" y2={H} class="guide" />
-      {points.map((p, i) => <circle cx={p.x} cy={p.y} r="2.5" class="ckpt" data-ckpt={i} style={`--k: ${i}`} />)}
+      {years.filter((y) => y.tick).map((y) => <line x1={y.x} y1={H - 4} x2={y.x} y2={H} class="axis" />)}
+      {
+        points.map((p, i) => (
+          <circle cx={p.x} cy={p.y} r={p.kind === 'project' ? 2 : 2.5} class:list={['ckpt', p.kind]} data-ckpt={i} style={`--k: ${(p.x / W).toFixed(3)}`} />
+        ))
+      }
     </svg>
     {
       points.map((p, i) => (
@@ -84,9 +105,9 @@ const fmt = (v: number) => v.toFixed(2);
           data-pt={i}
           class="hit"
           style={`left: ${p.x}px; top: ${p.y}px`}
-          aria-label={`Epoch ${p.epoch}, ${p.when}: ${p.label}. Loss ${fmt(p.loss)}.`}
+          aria-label={`Epoch ${p.epoch}, ${p.kind}, ${p.when}: ${p.label}. Loss ${fmt(p.loss)}.`}
           aria-describedby={`loss-story-${i}`}
-          data-meta={`epoch ${p.epoch} · ${p.when}`}
+          data-meta={`epoch ${p.epoch} · ${p.kind} · ${p.when}`}
           data-title={p.label}
           data-story={p.story}
           data-loss-value={fmt(p.loss)}
@@ -102,8 +123,15 @@ const fmt = (v: number) => v.toFixed(2);
     }
   </div>
 
-  <div class="mt-1.5 flex justify-end" aria-hidden="true">
-    <span class="label">epoch</span>
+  <div class="relative mt-1.5 h-3" aria-hidden="true">
+    {
+      years.map((y) => (
+        <span class="label absolute top-0" style={`left: ${y.x}px; transform: translateX(${y.tick ? '-50%' : '0'})`}>
+          {y.year}
+        </span>
+      ))
+    }
+    <span class="label absolute top-0 right-0">epoch</span>
   </div>
 </figure>
 
@@ -174,13 +202,22 @@ const fmt = (v: number) => v.toFixed(2);
       transform 200ms,
       fill 200ms;
   }
+  .ckpt.project {
+    stroke: color-mix(in oklab, var(--color-paper) 55%, transparent);
+  }
   .ckpt[data-on] {
     fill: var(--color-signal-hi);
     transform: scale(1.5);
   }
 
-  /* Invisible hit targets over each checkpoint. */
+  /* Checkpoints for keyboard focus. Pointers pick the nearest one from
+     anywhere on the plot (see the script), since some sit close together. */
+  .plot {
+    cursor: pointer;
+    touch-action: pan-y;
+  }
   .hit {
+    pointer-events: none;
     position: absolute;
     width: 28px;
     height: 28px;
@@ -221,8 +258,8 @@ const fmt = (v: number) => v.toFixed(2);
   }
   .loss[data-draw] .ckpt {
     animation: land 400ms ease-out backwards;
-    /* Roughly when the curve reaches each one. */
-    animation-delay: calc(0.05s + (var(--k) + 1) * 0.3s);
+    /* When the curve reaches it: --k is its x as a fraction of the width. */
+    animation-delay: calc(0.15s + var(--k) * 1.5s);
   }
   @keyframes draw {
     from {
@@ -284,22 +321,36 @@ const fmt = (v: number) => v.toFixed(2);
       story.textContent = b.dataset.story!;
     }
 
-    // Mouse hovers, keyboard focuses, touch taps (a tap toggles, and sticks
-    // until the next tap anywhere).
-    let tapped = 0;
-    pts.forEach((b, i) => {
-      b.addEventListener('pointerenter', (e) => e.pointerType !== 'touch' && show(i));
-      b.addEventListener('pointerleave', (e) => e.pointerType !== 'touch' && active === i && show(null));
-      b.addEventListener('pointerdown', (e) => {
-        if (e.pointerType !== 'touch') return;
-        tapped = e.timeStamp;
-        show(active === i ? null : i);
+    // Pointers pick the nearest checkpoint on the plot: mouse on hover, touch on
+    // tap (a tap toggles, and sticks until the next tap elsewhere). Keyboard
+    // focuses the checkpoint buttons.
+    const plot = $<HTMLElement>('.plot');
+    const NEAR = 24;
+    function nearest(e: PointerEvent) {
+      const r = plot.getBoundingClientRect();
+      let best: number | null = null;
+      let bestD = NEAR;
+      pts.forEach((b, i) => {
+        const dist = Math.hypot(e.clientX - r.left - parseFloat(b.style.left), e.clientY - r.top - parseFloat(b.style.top));
+        if (dist < bestD) [best, bestD] = [i, dist];
       });
+      return best;
+    }
+    let tapped = 0;
+    plot.addEventListener('pointermove', (e) => e.pointerType !== 'touch' && show(nearest(e)));
+    plot.addEventListener('pointerleave', (e) => e.pointerType !== 'touch' && show(null));
+    plot.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'touch') return;
+      tapped = e.timeStamp;
+      const i = nearest(e);
+      show(i === active ? null : i);
+    });
+    pts.forEach((b, i) => {
       b.addEventListener('focus', (e) => e.timeStamp - tapped > 600 && show(i));
       b.addEventListener('blur', () => active === i && show(null));
     });
     document.addEventListener('pointerdown', (e) => {
-      if (!(e.target as Element).closest('[data-pt]')) show(null);
+      if (!(e.target as Element).closest('.plot')) show(null);
     });
     fig.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') show(null);

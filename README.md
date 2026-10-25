@@ -19,7 +19,8 @@ the experience→project and project→choice edge weights, and the output layer
 Clicking an experience opens its feature map, from `src/data/features.ts`
 (diagrams, key numbers, and screenshot tiles; drop images in
 `public/features/<id>/` and set `src`). The loss curve in the output layer's
-corner reads its milestones and stories from `src/data/milestones.ts`.
+corner reads its milestones (every experience and project, placed by date) from
+`src/data/milestones.ts`.
 
 ## Develop
 
