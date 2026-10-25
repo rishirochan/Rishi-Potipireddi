@@ -146,15 +146,10 @@ const span = (t: Tile) => (t.kind === 'diagram' ? 'fm-big' : t.kind === 'status'
                   return (
                     <li class:list={['fm-tile', span(t)]} style={style}>
                       {head}
-                      <div class="mt-auto max-w-xl">
-                        <p class="label flex items-center gap-2">
-                          <span class="fm-live" aria-hidden="true" />
-                          training in progress
-                        </p>
-                        <p class="mt-3 text-4xl leading-none font-light tracking-tight md:text-5xl">{t.title}</p>
-                        <p class="mt-3 text-sm leading-snug text-paper/65">{t.text}</p>
-                      </div>
-                      <div class="fm-train" aria-hidden="true"><span /></div>
+                      <p class="mt-auto flex items-center gap-4 text-4xl leading-none font-light tracking-tight md:text-5xl">
+                        <span class="fm-live" aria-hidden="true" />
+                        {t.title}
+                      </p>
                     </li>
                   );
 
@@ -321,8 +316,9 @@ const span = (t: Tile) => (t.kind === 'diagram' ? 'fm-big' : t.kind === 'status'
     min-height: 18rem;
   }
   .fm-live {
-    width: 6px;
-    height: 6px;
+    flex: none;
+    width: 10px;
+    height: 10px;
     border-radius: 9999px;
     background: var(--color-signal-hi);
     box-shadow: 0 0 8px var(--color-signal-hi);
@@ -333,30 +329,6 @@ const span = (t: Tile) => (t.kind === 'diagram' ? 'fm-big' : t.kind === 'status'
       opacity: 0.25;
     }
   }
-  /* Indeterminate progress: a pulse of signal running along the bottom edge. */
-  .fm-train {
-    position: relative;
-    height: 2px;
-    margin-top: 1.25rem;
-    overflow: hidden;
-    background: color-mix(in oklab, var(--color-paper) 8%, transparent);
-  }
-  .fm-train span {
-    position: absolute;
-    inset-block: 0;
-    width: 30%;
-    background: linear-gradient(90deg, transparent, var(--color-signal-hi), transparent);
-    animation: fm-train 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
-  }
-  @keyframes fm-train {
-    from {
-      left: -30%;
-    }
-    to {
-      left: 100%;
-    }
-  }
-
   .fm-head {
     position: relative;
     display: flex;
@@ -448,8 +420,7 @@ const span = (t: Tile) => (t.kind === 'diagram' ? 'fm-big' : t.kind === 'status'
     .fm-tile {
       transition: none;
     }
-    .fm-live,
-    .fm-train span {
+    .fm-live {
       animation: none;
     }
   }
