@@ -39,7 +39,7 @@ export const milestones: Milestone[] = [
   {
     label: 'Amazon',
     when: 'Fall 2026',
-    story: 'SDE intern on the AWS Education Platform.',
+    story: 'SDE intern on the AWS T&C Non-metered Billing Service for the Skill Builder platform.',
     loss: 0.13,
   },
 ];
